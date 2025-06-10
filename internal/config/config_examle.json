@@ -1,0 +1,27 @@
+{
+    "logger_level": "debug",
+    "soft_config": {
+        "tg_settings": {
+        "app_id": 1234567890,
+        "api_hash": "qwertyuiop[]asdfghjkl;'zxcvbnm,./",
+        "phone": "+71234567890",
+        "password": ""
+        },
+    "criterias": [
+        {
+            "min_price": 10,
+            "max_price": 100,
+            "total_supply": 100000000,
+            "count": 10
+        }
+    ],
+        "total_star_cap":1000000000000,
+        "receiver": {
+            "type": 0,
+            "receiver_id": 1234567890
+        },
+        "ticker": 2.0,
+        "test_mode": false,
+        "max_buy_count": 100
+    }
+}
