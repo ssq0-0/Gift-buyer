@@ -298,8 +298,6 @@ func (gm *GiftBuyerImpl) purchaseGift(ctx context.Context, gift *tg.StarGift) er
 
 	switch form := paymentForm.(type) {
 	case *tg.PaymentsPaymentFormStars:
-		logger.GlobalLogger.Infof("use PaymentsPaymentFormStars")
-
 		sendStarsRequest := &tg.PaymentsSendStarsFormRequest{
 			FormID:  form.FormID,
 			Invoice: invoice,
@@ -312,7 +310,6 @@ func (gm *GiftBuyerImpl) purchaseGift(ctx context.Context, gift *tg.StarGift) er
 		return nil
 
 	case *tg.PaymentsPaymentFormStarGift:
-		logger.GlobalLogger.Infof("use PaymentsPaymentFormStarGift")
 		sendStarsRequest := &tg.PaymentsSendStarsFormRequest{
 			FormID:  form.FormID,
 			Invoice: invoice,
@@ -325,7 +322,6 @@ func (gm *GiftBuyerImpl) purchaseGift(ctx context.Context, gift *tg.StarGift) er
 		return nil
 
 	case *tg.PaymentsPaymentForm:
-		logger.GlobalLogger.Infof("use PaymentsPaymentForm")
 		return errors.New("regular payment form not supported for star gifts")
 
 	default:

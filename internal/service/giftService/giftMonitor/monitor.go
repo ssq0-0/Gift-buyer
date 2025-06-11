@@ -103,12 +103,6 @@ func (gm *GiftMonitorImpl) Start(ctx context.Context) (map[*tg.StarGift]int64, e
 					return
 				}
 				resultCh <- newGifts
-
-				go func() {
-					if err := gm.sendNotification(newGifts); err != nil {
-						errCh <- err
-					}
-				}()
 			}()
 		case newGifts := <-resultCh:
 			return newGifts, nil
@@ -155,24 +149,4 @@ func (gm *GiftMonitorImpl) checkForNewGifts(ctx context.Context) (map[*tg.StarGi
 	}
 
 	return newValidGifts, nil
-}
-
-// sendNotification sends notifications for all eligible gifts.
-// It iterates through the gift map and sends individual notifications
-// for each eligible gift discovered.
-//
-// Parameters:
-//   - gifts: map of eligible gifts to notify about
-//
-// Returns:
-//   - error: notification sending error
-func (gm *GiftMonitorImpl) sendNotification(gifts map[*tg.StarGift]int64) error {
-	if gm.notification.SetBot() {
-		for gift, _ := range gifts {
-			if err := gm.notification.SendNewGiftNotification(context.Background(), gift); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }

@@ -127,8 +127,16 @@ func (tc *GiftServiceImpl) Start() {
 			}
 
 			if len(newGifts) > 0 {
-				err = tc.buyer.BuyGift(tc.ctx, newGifts)
-				if err != nil {
+				tc.wg.Add(1)
+				go func() {
+					defer tc.wg.Done()
+					for gift, _ := range newGifts {
+						if err := tc.notification.SendNewGiftNotification(tc.ctx, gift); err != nil {
+							logger.GlobalLogger.Error("Error sending notification", "error", err)
+						}
+					}
+				}()
+				if err := tc.buyer.BuyGift(tc.ctx, newGifts); err != nil {
 					if tc.ctx.Err() != nil {
 						logger.GlobalLogger.Info("Context cancelled, stopping service")
 						return
