@@ -313,12 +313,12 @@ func TestGiftMonitor_Start_WithoutBot(t *testing.T) {
 	gift1 := &tg.StarGift{ID: 1, Stars: 100}
 	currentGifts := []*tg.StarGift{gift1}
 
-	// Setup mocks for checkForNewGifts - bot is not available
+	// Setup mocks for checkForNewGifts - notifications are now handled in service
 	mockManager.On("GetAvailableGifts", mock.AnythingOfType("*context.timerCtx")).Return(currentGifts, nil)
 	mockCache.On("HasGift", int64(1)).Return(false)
 	mockValidator.On("IsEligible", gift1).Return(int64(1), true)
 	mockCache.On("SetGift", int64(1), gift1).Return()
-	mockNotification.On("SetBot").Return(false) // Bot is not available
+	// Removed SetBot() call as notifications are now handled in service layer
 
 	newGifts, err := monitor.Start(ctx)
 
@@ -329,5 +329,5 @@ func TestGiftMonitor_Start_WithoutBot(t *testing.T) {
 	mockCache.AssertExpectations(t)
 	mockManager.AssertExpectations(t)
 	mockValidator.AssertExpectations(t)
-	mockNotification.AssertExpectations(t)
+	// Removed notification assertions as they're no longer called from monitor
 }

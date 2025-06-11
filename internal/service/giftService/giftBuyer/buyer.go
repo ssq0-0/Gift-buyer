@@ -9,11 +9,23 @@ import (
 	"gift-buyer/internal/service/giftService/giftInterfaces"
 	"gift-buyer/pkg/errors"
 	"gift-buyer/pkg/logger"
+	"math/rand"
 	"sync"
 	"time"
 
 	"github.com/gotd/td/tg"
 )
+
+var fastRand = rand.New(rand.NewSource(time.Now().UnixNano()))
+
+// selectRandomElementFast - максимально быстрый выбор случайного элемента
+func selectRandomElementFast[T any](slice []T) T {
+	if len(slice) == 0 {
+		var zero T
+		return zero
+	}
+	return slice[fastRand.Intn(len(slice))]
+}
 
 const (
 	// maxRetryAttempts defines the maximum number of retry attempts for failed purchases
@@ -37,10 +49,10 @@ type GiftBuyerImpl struct {
 	api *tg.Client
 
 	// receiver is the ID of the gift recipient
-	receiver int
+	receiver []int
 
 	// receiverType specifies the type of receiver (1 for user, 2 for channel)
-	receiverType int
+	receiverType []int
 
 	// counter tracks and limits the total number of purchases
 	counter *atomicCounter
@@ -59,7 +71,7 @@ type GiftBuyerImpl struct {
 //
 // Returns:
 //   - giftInterfaces.GiftBuyer: configured gift buyer instance
-func NewGiftBuyer(api *tg.Client, receiver, receiverType int, manager giftInterfaces.Giftmanager, notification giftInterfaces.NotificationService, maxBuyCount int64) giftInterfaces.GiftBuyer {
+func NewGiftBuyer(api *tg.Client, receiver, receiverType []int, manager giftInterfaces.Giftmanager, notification giftInterfaces.NotificationService, maxBuyCount int64) giftInterfaces.GiftBuyer {
 	return &GiftBuyerImpl{
 		api:          api,
 		receiver:     receiver,
@@ -282,7 +294,10 @@ func (gm *GiftBuyerImpl) validatePurchase(ctx context.Context, gift *tg.StarGift
 // Returns:
 //   - error: payment processing error or API communication failure
 func (gm *GiftBuyerImpl) purchaseGift(ctx context.Context, gift *tg.StarGift) error {
-	invoice, err := gm.createInvoice(gift)
+	randReceiverType := selectRandomElementFast(gm.receiverType)
+	randReceiver := selectRandomElementFast(gm.receiver)
+
+	invoice, err := gm.createInvoice(gift, randReceiverType, randReceiver)
 	if err != nil {
 		return errors.Wrap(err, "failed to create invoice")
 	}
@@ -345,9 +360,9 @@ func (gm *GiftBuyerImpl) purchaseGift(ctx context.Context, gift *tg.StarGift) er
 // Returns:
 //   - *tg.InputInvoiceStarGift: configured invoice for the gift purchase
 //   - error: invoice creation error or unsupported receiver type
-func (gm *GiftBuyerImpl) createInvoice(gift *tg.StarGift) (*tg.InputInvoiceStarGift, error) {
+func (gm *GiftBuyerImpl) createInvoice(gift *tg.StarGift, receiverType int, receiver int) (*tg.InputInvoiceStarGift, error) {
 	var invoice *tg.InputInvoiceStarGift
-	switch gm.receiverType {
+	switch receiverType {
 	case 0:
 		invoice = &tg.InputInvoiceStarGift{
 			Peer:   &tg.InputPeerSelf{},
@@ -355,7 +370,7 @@ func (gm *GiftBuyerImpl) createInvoice(gift *tg.StarGift) (*tg.InputInvoiceStarG
 		}
 	case 1:
 		ctx := context.Background()
-		userInfo, err := gm.getUserInfo(ctx, int64(gm.receiver))
+		userInfo, err := gm.getUserInfo(ctx, int64(receiver))
 		if err != nil {
 			return nil, errors.Wrap(err, "cannot create invoice without user access hash")
 		}
@@ -367,7 +382,7 @@ func (gm *GiftBuyerImpl) createInvoice(gift *tg.StarGift) (*tg.InputInvoiceStarG
 		return invoice, nil
 	case 2:
 		ctx := context.Background()
-		channelInfo, err := gm.getChannelInfo(ctx, int64(gm.receiver))
+		channelInfo, err := gm.getChannelInfo(ctx, int64(receiver))
 		if err != nil {
 			return nil, errors.Wrap(err, "cannot create invoice without channel access hash")
 		}
@@ -381,12 +396,9 @@ func (gm *GiftBuyerImpl) createInvoice(gift *tg.StarGift) (*tg.InputInvoiceStarG
 		}
 	default:
 		return nil, errors.Wrap(errors.New("unexpected receiver type"),
-			fmt.Sprintf("unexpected receiver type: %d", gm.receiverType))
+			fmt.Sprintf("unexpected receiver type: %d", receiverType))
 	}
 
-	invoice.SetMessage(tg.TextWithEntities{
-		Text: "Gift bought by @cheifssq",
-	})
 	return invoice, nil
 }
 
@@ -456,12 +468,12 @@ func (gm *GiftBuyerImpl) getUserInfo(ctx context.Context, userID int64) (*tg.Use
 			if !ok {
 				continue
 			}
-			if u.ID == int64(gm.receiver) {
+			if u.ID == userID {
 				return u, nil
 			}
 		}
 	default:
 		fmt.Println("unexpected response type:", fmt.Sprintf("%T", contacts))
 	}
-	return nil, errors.New(fmt.Sprintf("user %d not accessible: session hasn't met this user. See logs for solutions.", int64(gm.receiver)))
+	return nil, errors.New(fmt.Sprintf("user %d not accessible: session hasn't met this user. See logs for solutions.", userID))
 }

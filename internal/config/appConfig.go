@@ -82,8 +82,8 @@ type Criterias struct {
 // ReceiverParams specifies the recipient configuration for purchased gifts.
 type ReceiverParams struct {
 	// Type specifies the receiver type (1 for user, 2 for channel)
-	Type int `json:"type"`
+	Type []int `json:"type"`
 
 	// ReceiverID is the Telegram ID of the gift recipient
-	ReceiverID int `json:"receiver_id"`
+	ReceiverID []int `json:"receiver_id"`
 }

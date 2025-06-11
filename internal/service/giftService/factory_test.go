@@ -23,8 +23,8 @@ func TestNewFactory(t *testing.T) {
 			},
 		},
 		Receiver: config.ReceiverParams{
-			Type:       1,
-			ReceiverID: 987654321,
+			Type:       []int{1},
+			ReceiverID: []int{987654321},
 		},
 		Ticker: 30.0,
 	}
@@ -56,8 +56,8 @@ func TestFactory_Structure(t *testing.T) {
 			},
 		},
 		Receiver: config.ReceiverParams{
-			Type:       1,
-			ReceiverID: 987654321,
+			Type:       []int{1},
+			ReceiverID: []int{987654321},
 		},
 		Ticker: 30.0,
 	}
@@ -86,8 +86,8 @@ func TestFactory_CreateSystemMethod(t *testing.T) {
 			},
 		},
 		Receiver: config.ReceiverParams{
-			Type:       1,
-			ReceiverID: 987654321,
+			Type:       []int{1},
+			ReceiverID: []int{987654321},
 		},
 		Ticker: 30.0,
 	}
@@ -118,8 +118,8 @@ func TestFactory_ConfigMutability(t *testing.T) {
 			},
 		},
 		Receiver: config.ReceiverParams{
-			Type:       1,
-			ReceiverID: 987654321,
+			Type:       []int{1},
+			ReceiverID: []int{987654321},
 		},
 		Ticker: 30.0,
 	}
@@ -152,8 +152,8 @@ func TestFactory_MinimalConfig(t *testing.T) {
 			},
 		},
 		Receiver: config.ReceiverParams{
-			Type:       0,
-			ReceiverID: 0,
+			Type:       []int{0},
+			ReceiverID: []int{0},
 		},
 		Ticker: 1.0,
 	}
@@ -194,8 +194,8 @@ func TestFactory_MultipleCriterias(t *testing.T) {
 			},
 		},
 		Receiver: config.ReceiverParams{
-			Type:       1,
-			ReceiverID: 987654321,
+			Type:       []int{1},
+			ReceiverID: []int{987654321},
 		},
 		Ticker: 15.0,
 	}
@@ -237,8 +237,8 @@ func TestFactory_EdgeCaseValues(t *testing.T) {
 			},
 		},
 		Receiver: config.ReceiverParams{
-			Type:       -1,         // Negative type
-			ReceiverID: -987654321, // Negative receiver
+			Type:       []int{-1},         // Negative type
+			ReceiverID: []int{-987654321}, // Negative receiver
 		},
 		Ticker: -30.0, // Negative ticker
 	}
@@ -253,8 +253,8 @@ func TestFactory_EdgeCaseValues(t *testing.T) {
 	assert.Equal(t, int64(-100), factory.cfg.Criterias[0].MinPrice)
 	assert.Equal(t, int64(-50), factory.cfg.Criterias[0].MaxPrice)
 	assert.Equal(t, int64(-10), factory.cfg.Criterias[0].TotalSupply)
-	assert.Equal(t, -1, factory.cfg.Receiver.Type)
-	assert.Equal(t, -987654321, factory.cfg.Receiver.ReceiverID)
+	assert.Equal(t, []int{-1}, factory.cfg.Receiver.Type)
+	assert.Equal(t, []int{-987654321}, factory.cfg.Receiver.ReceiverID)
 	assert.Equal(t, -30.0, factory.cfg.Ticker)
 }
 
@@ -274,8 +274,8 @@ func TestFactory_ZeroValues(t *testing.T) {
 			},
 		},
 		Receiver: config.ReceiverParams{
-			Type:       0,
-			ReceiverID: 0,
+			Type:       []int{0},
+			ReceiverID: []int{0},
 		},
 		Ticker: 0.0,
 	}
@@ -292,7 +292,7 @@ func TestFactory_ZeroValues(t *testing.T) {
 	assert.Equal(t, int64(0), factory.cfg.Criterias[0].MinPrice)
 	assert.Equal(t, int64(0), factory.cfg.Criterias[0].MaxPrice)
 	assert.Equal(t, int64(0), factory.cfg.Criterias[0].TotalSupply)
-	assert.Equal(t, 0, factory.cfg.Receiver.Type)
-	assert.Equal(t, 0, factory.cfg.Receiver.ReceiverID)
+	assert.Equal(t, []int{0}, factory.cfg.Receiver.Type)
+	assert.Equal(t, []int{0}, factory.cfg.Receiver.ReceiverID)
 	assert.Equal(t, 0.0, factory.cfg.Ticker)
 }

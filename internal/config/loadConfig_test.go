@@ -35,8 +35,8 @@ func TestLoadConfig_Success(t *testing.T) {
 				},
 			},
 			Receiver: ReceiverParams{
-				Type:       1,
-				ReceiverID: 987654321,
+				Type:       []int{1},
+				ReceiverID: []int{987654321},
 			},
 			Ticker: 30.0,
 		},
@@ -141,7 +141,7 @@ func TestLoadConfig_PartialConfig(t *testing.T) {
 	// Other fields should have zero values
 	assert.Equal(t, "", config.SoftConfig.TgSettings.Phone)
 	assert.Equal(t, "", config.SoftConfig.TgSettings.Password)
-	assert.Equal(t, ReceiverParams{Type: 0, ReceiverID: 0}, config.SoftConfig.Receiver)
+	assert.Equal(t, ReceiverParams{Type: []int(nil), ReceiverID: []int(nil)}, config.SoftConfig.Receiver)
 	assert.Empty(t, config.SoftConfig.Criterias)
 }
 
@@ -176,8 +176,8 @@ func TestLoadConfig_MultipleCriterias(t *testing.T) {
 				},
 			},
 			Receiver: ReceiverParams{
-				Type:       1,
-				ReceiverID: 111222333,
+				Type:       []int{1},
+				ReceiverID: []int{111222333},
 			},
 			Ticker: 15.0,
 		},
@@ -230,8 +230,8 @@ func TestLoadConfig_ZeroValues(t *testing.T) {
 				},
 			},
 			Receiver: ReceiverParams{
-				Type:       0,
-				ReceiverID: 0,
+				Type:       []int{0},
+				ReceiverID: []int{0},
 			},
 			Ticker: 0.0,
 		},
@@ -254,7 +254,7 @@ func TestLoadConfig_ZeroValues(t *testing.T) {
 	assert.Equal(t, int64(0), loadedConfig.SoftConfig.Criterias[0].MinPrice)
 	assert.Equal(t, int64(0), loadedConfig.SoftConfig.Criterias[0].MaxPrice)
 	assert.Equal(t, int64(0), loadedConfig.SoftConfig.Criterias[0].TotalSupply)
-	assert.Equal(t, ReceiverParams{Type: 0, ReceiverID: 0}, loadedConfig.SoftConfig.Receiver)
+	assert.Equal(t, ReceiverParams{Type: []int{0}, ReceiverID: []int{0}}, loadedConfig.SoftConfig.Receiver)
 	assert.Equal(t, 0.0, loadedConfig.SoftConfig.Ticker)
 }
 

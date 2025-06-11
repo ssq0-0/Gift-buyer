@@ -91,22 +91,27 @@
 - **`total_supply`** — максимальный общий тираж подарка
 - **`count`** — количество подарков для покупки по этому критерию
 
-#### 👤 Получатель подарка (`receiver`)
+#### 👤 Получатели подарков (`receiver`)
 
 ```json
 {
     "receiver": {
-        "type": 1,
-        "receiver_id": 123456789
+        "type": [1, 2],
+        "receiver_id": [123456789, 987654321, 555666777]
     }
 }
 ```
 
-- **`type`**:
+- **`type`** — массив типов получателей:
   - `0` — отправить себе
   - `1` — отправить другому пользователю (пользователь должен быть в ваших контактах)
   - `2` — отправить в канал (канал должен принадлежать вашему аккаунту)
-- **`receiver_id`** — ID получателя (пользователя или канала, если себе - рандомную цифру можно написать)
+- **`receiver_id`** — массив ID получателей (пользователей или каналов)
+
+**Как это работает:**
+- При каждой покупке система случайно выбирает один тип из массива `type` и один ID из массива `receiver_id`
+- Это позволяет распределять подарки между несколькими получателями
+- Если указать `type: [0]` и `receiver_id: [0]`, все подарки будут отправляться себе
 
 #### ⏱️ Частота проверки (`check_interval_ms`)
 
@@ -177,8 +182,8 @@
         ],
         "total_star_cap": 5000,
         "receiver": {
-            "type": 0,
-            "receiver_id": 0
+            "type": [0, 1],
+            "receiver_id": [0, 123456789, 987654321]
         },
         "test_mode": false,
         "max_buy_count": 4,
@@ -282,22 +287,27 @@ You can specify multiple criteria - the program will purchase gifts matching any
 - **`total_supply`** — maximum total gift supply
 - **`count`** — number of gifts to purchase for this criteria
 
-#### 👤 Gift Receiver (`receiver`)
+#### 👤 Gift Recipients (`receiver`)
 
 ```json
 {
     "receiver": {
-        "type": 1,
-        "receiver_id": 123456789
+        "type": [1, 2],
+        "receiver_id": [123456789, 987654321, 555666777]
     }
 }
 ```
 
-- **`type`**:
+- **`type`** — array of recipient types:
   - `0` — send to yourself
   - `1` — send to another user (user must be in your contacts)
   - `2` — send to channel (channel must belong to your account)
-- **`receiver_id`** — recipient ID (user or channel)
+- **`receiver_id`** — array of recipient IDs (users or channels)
+
+**How it works:**
+- For each purchase, the system randomly selects one type from the `type` array and one ID from the `receiver_id` array
+- This allows distributing gifts among multiple recipients
+- If you specify `type: [0]` and `receiver_id: [0]`, all gifts will be sent to yourself
 
 #### ⏱️ Check Frequency (`check_interval_ms`)
 
@@ -368,8 +378,8 @@ If you have criteria for 3+2+1=6 gifts, but `max_buy_count: 4`, only 4 gifts wil
         ],
         "total_star_cap": 5000,
         "receiver": {
-            "type": 0,
-            "receiver_id": 0
+            "type": [0, 1],
+            "receiver_id": [0, 123456789, 987654321]
         },
         "test_mode": false,
         "max_buy_count": 4,

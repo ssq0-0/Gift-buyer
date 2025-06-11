@@ -111,7 +111,7 @@ func TestGiftBuyer(t *testing.T) {
 		mockNotification := &MockNotificationService{}
 		api := &tg.Client{}
 
-		buyer := NewGiftBuyer(api, 123, 0, mockManager, mockNotification, 10).(*GiftBuyerImpl)
+		buyer := NewGiftBuyer(api, []int{123}, []int{0}, mockManager, mockNotification, 10).(*GiftBuyerImpl)
 
 		assert.NotNil(t, buyer)
 		assert.Equal(t, int64(0), buyer.GetTotalBuyCount())
