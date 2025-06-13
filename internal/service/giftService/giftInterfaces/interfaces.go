@@ -145,3 +145,63 @@ type NotificationService interface {
 	// SetBot sets the bot client
 	SetBot() bool
 }
+
+// UserCache defines the interface for caching user information.
+// It provides persistent storage for user data to avoid redundant API calls
+// and maintain state across application restarts.
+type UserCache interface {
+	// SetUser stores a user in the cache with the specified ID as key.
+	//
+	// Parameters:
+	//   - id: unique identifier for the user
+	//   - user: the user object to cache
+	SetUser(user *tg.User)
+
+	// GetUser retrieves a cached user by their ID.
+	//
+	// Parameters:
+	//   - id: unique identifier of the user to retrieve
+	//
+	// Returns:
+	//   - *tg.User: the cached user object, nil if not found
+	//   - error: retrieval error (currently always nil)
+	GetUser(id int64) (*tg.User, error)
+
+	// SetChannel stores a channel in the cache with the specified ID as key.
+	//
+	// Parameters:
+	//   - id: unique identifier for the channel
+	//   - channel: the channel object to cache
+	SetChannel(channel *tg.Channel)
+
+	// GetChannel retrieves a cached channel by its ID.
+	//
+	// Parameters:
+	//   - id: unique identifier of the channel to retrieve
+	//
+	// Returns:
+	//   - *tg.Channel: the cached channel object, nil if not found
+	//   - error: retrieval error (currently always nil)
+	GetChannel(id int64) (*tg.Channel, error)
+}
+
+// BalanceCache defines the interface for caching the balance of the user
+type BalanceCache interface {
+	// SetBalance sets the balance of the user
+	//
+	// Parameters:
+	//   - balance: the balance to set
+	SetBalance(balance int64)
+
+	// GetBalance gets the balance of the user
+	//
+	// Returns:
+	//   - int64: the balance of the user
+	GetBalance() int64
+
+	// TrimBalance trims the balance of the user
+	//
+	// Parameters:
+	//   - deduction: the amount to trim from the balance
+	TrimBalance(deduction int64)
+}

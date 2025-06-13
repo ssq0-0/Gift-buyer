@@ -6,8 +6,10 @@ import (
 	"context"
 	"fmt"
 	"gift-buyer/internal/config"
+	"gift-buyer/internal/service/giftService/cache/balanceCache"
+	"gift-buyer/internal/service/giftService/cache/giftCache"
+	"gift-buyer/internal/service/giftService/cache/idCache"
 	"gift-buyer/internal/service/giftService/giftBuyer"
-	"gift-buyer/internal/service/giftService/giftCache"
 	"gift-buyer/internal/service/giftService/giftManager"
 	"gift-buyer/internal/service/giftService/giftMonitor"
 	"gift-buyer/internal/service/giftService/giftNotification"
@@ -63,9 +65,18 @@ func NewFactory(cfg *config.SoftConfig) *Factory {
 //   - Network connectivity issues
 //   - Invalid configuration parameters
 func (f *Factory) CreateSystem() (GiftService, error) {
+	deviceConfig := f.createDeviceConfig()
 	client := telegram.NewClient(f.cfg.TgSettings.AppId, f.cfg.TgSettings.ApiHash, telegram.Options{
 		SessionStorage: &telegram.FileSessionStorage{
 			Path: "session.json",
+		},
+		Device: telegram.DeviceConfig{
+			DeviceModel:    deviceConfig.DeviceModel,
+			SystemVersion:  deviceConfig.SystemVersion,
+			AppVersion:     deviceConfig.AppVersion,
+			SystemLangCode: deviceConfig.SystemLangCode,
+			LangCode:       deviceConfig.LangCode,
+			LangPack:       deviceConfig.LangPack,
 		},
 	})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -88,9 +99,11 @@ func (f *Factory) CreateSystem() (GiftService, error) {
 	validator := giftValidator.NewGiftValidator(f.cfg.Criterias, f.cfg.TotalStarCap, f.cfg.TestMode, f.cfg.LimitedStatus)
 	manager := giftManager.NewGiftManager(client.API())
 	cache := giftCache.NewGiftCache()
+	userCache := idCache.NewIDCache()
+	balanceCache := balanceCache.NewBalanceCache()
 	notification := giftNotification.NewNotification(botClient, &f.cfg.TgSettings)
 	monitor := giftMonitor.NewGiftMonitor(cache, manager, validator, notification, time.Duration(f.cfg.Ticker*1000)*time.Millisecond)
-	buyer := giftBuyer.NewGiftBuyer(client.API(), f.cfg.Receiver.ReceiverID, f.cfg.Receiver.Type, manager, notification, f.cfg.MaxBuyCount)
+	buyer := giftBuyer.NewGiftBuyer(client.API(), f.cfg.Receiver.UserReceiverID, f.cfg.Receiver.ChannelReceiverID, f.cfg.Receiver.Type, manager, notification, f.cfg.MaxBuyCount, f.cfg.RetryCount, time.Duration(f.cfg.RetryDelay*1000)*time.Millisecond, balanceCache, userCache, f.cfg.ConcurrencyGiftCount, f.cfg.ConcurrentOperations)
 
 	service := NewGiftService(
 		manager,
@@ -102,9 +115,58 @@ func (f *Factory) CreateSystem() (GiftService, error) {
 		ctx,
 		cancel,
 		api,
+		time.NewTicker(time.Duration(f.cfg.BalanceTicker*1000)*time.Millisecond),
+		balanceCache,
 	)
 
 	return service, nil
+}
+
+func (f *Factory) createDeviceConfig() telegram.DeviceConfig {
+	config := telegram.DeviceConfig{}
+
+	// Устанавливаем значения по умолчанию
+	config.SetDefaults()
+
+	// Переопределяем значениями из конфигурации, если они заданы
+	// Иначе используем реалистичные значения для macOS
+	if f.cfg.TgSettings.DeviceModel != "" {
+		config.DeviceModel = f.cfg.TgSettings.DeviceModel
+	} else {
+		config.DeviceModel = "MacBook Pro M1 Pro"
+	}
+
+	if f.cfg.TgSettings.SystemVersion != "" {
+		config.SystemVersion = f.cfg.TgSettings.SystemVersion
+	} else {
+		config.SystemVersion = "macOS 14.1"
+	}
+
+	if f.cfg.TgSettings.AppVersion != "" {
+		config.AppVersion = f.cfg.TgSettings.AppVersion
+	} else {
+		config.AppVersion = "11.9 (272031) APP_STORE"
+	}
+
+	if f.cfg.TgSettings.SystemLangCode != "" {
+		config.SystemLangCode = f.cfg.TgSettings.SystemLangCode
+	} else {
+		config.SystemLangCode = "en"
+	}
+
+	if f.cfg.TgSettings.LangCode != "" {
+		config.LangCode = f.cfg.TgSettings.LangCode
+	} else {
+		config.LangCode = "en"
+	}
+
+	if f.cfg.TgSettings.LangPack != "" {
+		config.LangPack = f.cfg.TgSettings.LangPack
+	} else {
+		config.LangPack = "macos"
+	}
+
+	return config
 }
 
 // initClient initializes and authenticates the main Telegram user client.
