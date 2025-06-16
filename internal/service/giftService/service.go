@@ -22,9 +22,6 @@ type GiftService interface {
 
 	// Stop gracefully shuts down the gift service and all its components.
 	Stop()
-
-	// BalanceMonitoring starts the balance monitoring process.
-	BalanceMonitoring(ctx context.Context)
 }
 
 // GiftServiceImpl implements the GiftService interface and orchestrates all gift buying operations.
@@ -63,9 +60,6 @@ type GiftServiceImpl struct {
 
 	// balanceTicker controls the balance monitoring interval
 	balanceTicker *time.Ticker
-
-	// balanceCache caches the current balance of the user
-	balanceCache giftInterfaces.BalanceCache
 }
 
 // NewGiftService creates a new GiftService instance with all required dependencies.
@@ -94,21 +88,17 @@ func NewGiftService(
 	ctx context.Context,
 	cancel context.CancelFunc,
 	api *tg.Client,
-	balanceTicker *time.Ticker,
-	balanceCache giftInterfaces.BalanceCache,
 ) GiftService {
 	return &GiftServiceImpl{
-		manager:       manager,
-		validator:     validator,
-		cache:         cache,
-		notification:  notification,
-		monitor:       monitor,
-		buyer:         buyer,
-		ctx:           ctx,
-		cancel:        cancel,
-		api:           api,
-		balanceTicker: balanceTicker,
-		balanceCache:  balanceCache,
+		manager:      manager,
+		validator:    validator,
+		cache:        cache,
+		notification: notification,
+		monitor:      monitor,
+		buyer:        buyer,
+		ctx:          ctx,
+		cancel:       cancel,
+		api:          api,
 	}
 }
 
@@ -128,12 +118,14 @@ func (tc *GiftServiceImpl) Start() {
 	for {
 		select {
 		case <-tc.ctx.Done():
+			tc.wg.Wait()
 			return
 		default:
 			newGifts, err := tc.monitor.Start(tc.ctx)
 			if err != nil {
 				if tc.ctx.Err() != nil {
 					logger.GlobalLogger.Info("Context cancelled, stopping service")
+					tc.wg.Wait()
 					return
 				}
 				logger.GlobalLogger.Error("Error checking for new gifts", "error", err)
@@ -141,50 +133,23 @@ func (tc *GiftServiceImpl) Start() {
 			}
 
 			if len(newGifts) > 0 {
-				tc.wg.Add(1)
+				logger.GlobalLogger.Infof("Found %d new gift types to process", len(newGifts))
+				tc.wg.Add(2)
 				go func() {
 					defer tc.wg.Done()
-					for gift, _ := range newGifts {
+					for gift, count := range newGifts {
 						if err := tc.notification.SendNewGiftNotification(tc.ctx, gift); err != nil {
-							logger.GlobalLogger.Error("Error sending notification", "error", err)
+							logger.GlobalLogger.Error("Error sending notification", "error", err, "gift_id", gift.ID, "count", count)
 						}
 					}
 				}()
-				if err := tc.buyer.BuyGift(tc.ctx, newGifts); err != nil {
-					if tc.ctx.Err() != nil {
-						logger.GlobalLogger.Info("Context cancelled, stopping service")
-						return
-					}
-					logger.GlobalLogger.Error("Error buying gift", "error", err)
-					continue
-				}
-				logger.GlobalLogger.Infof("New gifts bought. count: %d", len(newGifts))
-			}
-		}
-	}
-}
+				go func() {
+					defer tc.wg.Done()
+					tc.buyer.BuyGift(tc.ctx, newGifts)
+				}()
 
-func (tc *GiftServiceImpl) BalanceMonitoring(ctx context.Context) {
-	balance, err := tc.api.PaymentsGetStarsStatus(ctx, &tg.InputPeerSelf{})
-	if err != nil {
-		logger.GlobalLogger.Error("Error getting stars status", "error", err)
-		return
-	}
-	tc.balanceCache.SetBalance(int64(balance.Balance.Amount))
-	logger.GlobalLogger.Infof("Balance updated: %d", balance.Balance.Amount)
-	for {
-		select {
-		case <-ctx.Done():
-			logger.GlobalLogger.Info("Context cancelled, stopping balance monitoring")
-			return
-		case <-tc.balanceTicker.C:
-			balance, err := tc.api.PaymentsGetStarsStatus(ctx, &tg.InputPeerSelf{})
-			if err != nil {
-				logger.GlobalLogger.Error("Error getting stars status", "error", err)
 				continue
 			}
-			tc.balanceCache.SetBalance(int64(balance.Balance.Amount))
-			logger.GlobalLogger.Infof("Balance updated: %d", balance.Balance.Amount)
 		}
 	}
 }
@@ -197,4 +162,9 @@ func (tc *GiftServiceImpl) Stop() {
 		tc.cancel()
 	}
 	tc.wg.Wait()
+
+	// Закрываем buyer и освобождаем ресурсы (rate limiter)
+	if tc.buyer != nil {
+		tc.buyer.Close()
+	}
 }

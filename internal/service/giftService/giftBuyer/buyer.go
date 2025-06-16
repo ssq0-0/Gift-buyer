@@ -10,6 +10,7 @@ import (
 	"gift-buyer/pkg/errors"
 	"gift-buyer/pkg/logger"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gotd/td/tg"
@@ -24,9 +25,6 @@ type GiftBuyerImpl struct {
 
 	// idCache is the cache for user IDs
 	idCache giftInterfaces.UserCache
-
-	// balanceCache is the cache for balance
-	balanceCache giftInterfaces.BalanceCache
 
 	// notification sends purchase status updates and notifications
 	notification giftInterfaces.NotificationService
@@ -46,10 +44,14 @@ type GiftBuyerImpl struct {
 	// counter tracks and limits the total number of purchases
 	counter *atomicCounter
 
-	retryCount           int
-	retryDelay           time.Duration
+	retryCount int
+	// retryDelay           time.Duration
 	concurrentGifts      int
 	concurrentOperations int
+
+	// requestCounter provides unique identifiers for requests to avoid FormID duplicates
+	requestCounter int64
+	rateLimiter    giftInterfaces.RateLimiter
 }
 
 // NewGiftBuyer creates a new GiftBuyer instance with the specified configuration.
@@ -76,10 +78,9 @@ func NewGiftBuyer(
 	notification giftInterfaces.NotificationService,
 	maxBuyCount int64,
 	retryCount int,
-	retryDelay time.Duration,
-	balanceCache giftInterfaces.BalanceCache,
 	idCache giftInterfaces.UserCache,
 	concurrentGifts int,
+	rateLimiter giftInterfaces.RateLimiter,
 	concurrentOperations int,
 ) giftInterfaces.GiftBuyer {
 	return &GiftBuyerImpl{
@@ -91,11 +92,11 @@ func NewGiftBuyer(
 		notification:         notification,
 		counter:              newAtomicCounter(maxBuyCount),
 		retryCount:           retryCount,
-		retryDelay:           retryDelay,
-		balanceCache:         balanceCache,
 		idCache:              idCache,
 		concurrentGifts:      concurrentGifts,
 		concurrentOperations: concurrentOperations,
+		requestCounter:       0,
+		rateLimiter:          rateLimiter,
 	}
 }
 
@@ -115,29 +116,15 @@ func NewGiftBuyer(
 //
 // Returns:
 //   - error: purchase error, payment failure, or aggregated error from multiple failures
-func (gm *GiftBuyerImpl) BuyGift(ctx context.Context, gifts map[*tg.StarGift]int64) error {
-	if len(gifts) == 0 {
-		return nil
-	}
-
-	totalRequested := int64(0)
-	for _, count := range gifts {
-		totalRequested += count
-	}
-
-	// Структура для результатов покупки каждого подарка
-	type giftResult struct {
-		giftID    int64
-		requested int64
-		success   int64
-		err       error
-	}
-
+func (gm *GiftBuyerImpl) BuyGift(ctx context.Context, gifts map[*tg.StarGift]int64) {
 	var (
 		wg        sync.WaitGroup
 		sem       = make(chan struct{}, gm.concurrentGifts)
-		resultsCh = make(chan giftResult, len(gifts))
+		resultsCh = make(chan giftResult)
+		doneCh    = make(chan struct{})
 	)
+
+	go gm.monitorProcess(ctx, resultsCh, doneCh, gifts)
 
 	for gift, count := range gifts {
 		wg.Add(1)
@@ -146,77 +133,119 @@ func (gm *GiftBuyerImpl) BuyGift(ctx context.Context, gifts map[*tg.StarGift]int
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			success, err := gm.buyGift(ctx, gift, count)
-			resultsCh <- giftResult{
-				giftID:    gift.ID,
-				requested: count,
-				success:   success,
-				err:       err,
-			}
+			gm.buyGift(ctx, gift, count, resultsCh)
 		}(gift, count)
 	}
 
-	wg.Wait()
-	close(resultsCh)
+	go func() {
+		wg.Wait()
+		close(doneCh)
+	}()
+}
 
-	// Анализируем результаты
-	var (
-		totalSuccess  int64
-		totalFailed   int64
-		hasErrors     bool
-		successByGift = make(map[int64]int64)
-		failedByGift  = make(map[int64]int64)
-	)
-
-	for result := range resultsCh {
-		totalSuccess += result.success
-		failed := result.requested - result.success
-		totalFailed += failed
-
-		successByGift[result.giftID] = result.success
-		failedByGift[result.giftID] = failed
-
-		if result.err != nil {
-			hasErrors = true
-			logger.GlobalLogger.Errorf("Gift %d purchase error: %v", result.giftID, result.err)
-		}
-
-		if result.success > 0 {
-			logger.GlobalLogger.Infof("Successfully bought %d/%d x gift %d",
-				result.success, result.requested, result.giftID)
+func (gm *GiftBuyerImpl) monitorProcess(ctx context.Context, resultsCh chan giftResult, doneChan chan struct{}, gifts map[*tg.StarGift]int64) {
+	summaries := make(map[int64]*giftSummary)
+	errorCounts := make(map[string]int64)
+	for gift, count := range gifts {
+		summaries[gift.ID] = &giftSummary{
+			giftID:    gift.ID,
+			requested: count,
+			success:   0,
 		}
 	}
 
-	// Отправляем уведомления на основе результатов
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-doneChan:
+			mostFrequentError := gm.getMostFrequentError(errorCounts)
+			gm.sendNotify(ctx, summaries, mostFrequentError)
+			return
+		case result, ok := <-resultsCh:
+			if !ok {
+				return
+			}
+
+			if result.success {
+				summaries[result.giftID].success++
+			} else if result.err != nil {
+				errorCounts[result.err.Error()]++
+			}
+		}
+	}
+}
+
+func (gm *GiftBuyerImpl) getMostFrequentError(errorCounts map[string]int64) error {
+	if len(errorCounts) == 0 {
+		return nil
+	}
+
+	var mostFrequentError string
+	var maxCount int64
+
+	for errorMsg, count := range errorCounts {
+		if count > maxCount {
+			maxCount = count
+			mostFrequentError = errorMsg
+		}
+	}
+
+	return errors.New(mostFrequentError)
+}
+
+func (gm *GiftBuyerImpl) sendNotify(ctx context.Context, summaries map[int64]*giftSummary, mostFrequentError error) {
+	totalSuccess := int64(0)
+	totalRequested := int64(0)
+
+	for _, summary := range summaries {
+		totalSuccess += summary.success
+		totalRequested += summary.requested
+	}
+
 	if gm.notification.SetBot() {
 		if totalSuccess == totalRequested {
-			// Полный успех
 			gm.notification.SendBuyStatus(ctx,
 				fmt.Sprintf("✅ Успешно куплено %d подарков", totalSuccess), nil)
 		} else if totalSuccess > 0 {
-			// Частичный успех
 			message := fmt.Sprintf("⚠️ Частично выполнено: %d/%d подарков куплено",
 				totalSuccess, totalRequested)
 			gm.notification.SendBuyStatus(ctx, message, nil)
 		} else {
-			// Полная неудача
-			gm.notification.SendBuyStatus(ctx,
-				fmt.Sprintf("❌ Не удалось купить ни одного подарка из %d", totalRequested),
-				errors.New("все покупки неудачны"))
+			message := fmt.Sprintf("❌ Не удалось купить ни одного подарка из %d", totalRequested)
+			errorToSend := mostFrequentError
+			if errorToSend == nil {
+				errorToSend = errors.New("все покупки неудачны")
+			}
+			gm.notification.SendBuyStatus(ctx, message, errorToSend)
+		}
+	} else {
+		if totalSuccess == totalRequested {
+			logger.GlobalLogger.Infof("✅ Successfully bought all %d gifts", totalSuccess)
+		} else if totalSuccess > 0 {
+			logger.GlobalLogger.Warnf("⚠️ Partially completed: %d/%d gifts bought", totalSuccess, totalRequested)
+		} else {
+			logger.GlobalLogger.Errorf("❌ Failed to buy any gifts out of %d requested", totalRequested)
+		}
+
+		for _, summary := range summaries {
+			if summary.success > 0 {
+				logger.GlobalLogger.Infof("Successfully bought %d/%d x gift %d",
+					summary.success, summary.requested, summary.giftID)
+			} else {
+				logger.GlobalLogger.Errorf("Failed to buy %d/%d x gift %d",
+					summary.success, summary.requested, summary.giftID)
+			}
+		}
+		if mostFrequentError != nil {
+			logger.GlobalLogger.Errorf("Most frequent error during purchase: %v", mostFrequentError)
 		}
 	}
-
-	// Возвращаем ошибку только если не было ни одной успешной покупки
-	if totalSuccess == 0 && hasErrors {
-		return errors.New("не удалось купить ни одного подарка")
-	}
-
-	return nil
 }
 
 // buyGift attempts to purchase a specific gift multiple times with retry logic.
 // It handles individual gift purchases, manages the purchase counter, and implements
-// retry logic with exponential backoff for failed attempts.
+// asynchronous retry logic where each attempt is a separate goroutine.
 //
 // Parameters:
 //   - ctx: context for request cancellation and timeout control
@@ -226,26 +255,46 @@ func (gm *GiftBuyerImpl) BuyGift(ctx context.Context, gifts map[*tg.StarGift]int
 // Returns:
 //   - int64: number of successful purchases completed
 //   - error: purchase error after all retry attempts exhausted
-func (gm *GiftBuyerImpl) buyGift(ctx context.Context, gift *tg.StarGift, count int64) (int64, error) {
+func (gm *GiftBuyerImpl) buyGift(ctx context.Context, gift *tg.StarGift, count int64, resChan chan<- giftResult) {
 	var (
-		wg           sync.WaitGroup
-		sem          = make(chan struct{}, gm.concurrentOperations)
-		successCh    = make(chan int64, count)
-		errCh        = make(chan error, count)
-		successCount int64
+		wg  sync.WaitGroup
+		sem = make(chan struct{}, gm.concurrentOperations)
 	)
-
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 
 	for i := int64(0); i < count; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
+			gm.buyGiftWithRetry(ctx, gift, sem, resChan)
+		}()
+	}
+
+	wg.Wait()
+}
+
+func (gm *GiftBuyerImpl) buyGiftWithRetry(ctx context.Context, gift *tg.StarGift, sem chan struct{}, resChan chan<- giftResult) {
+	attemptChan := make(chan int, gm.retryCount)
+	resultChan := make(chan bool, 1)
+	var lastErr error
+	var mu sync.Mutex
+
+	for j := 0; j < gm.retryCount; j++ {
+		attemptChan <- j
+	}
+	close(attemptChan)
+
+	var wg sync.WaitGroup
+
+	for attempt := range attemptChan {
+		wg.Add(1)
+		go func(attemptNum int) {
+			defer wg.Done()
+
 			select {
 			case <-ctx.Done():
-				errCh <- ctx.Err()
+				return
+			case <-resultChan:
 				return
 			default:
 			}
@@ -253,76 +302,48 @@ func (gm *GiftBuyerImpl) buyGift(ctx context.Context, gift *tg.StarGift, count i
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			purchased := false
-
-			for j := 0; j < gm.retryCount; j++ {
-				select {
-				case <-ctx.Done():
-					errCh <- ctx.Err()
-					return
-				default:
-				}
-
-				if !gm.counter.TryIncrement() {
-					errCh <- errors.New("max buy count reached")
-					return
-				}
-
-				if err := gm.validatePurchase(gift); err != nil {
-					gm.counter.Decrement()
-					errCh <- err
-
-					select {
-					case <-time.After(gm.retryDelay):
-					case <-ctx.Done():
-						return
-					}
-					continue
-				}
-
-				if err := gm.purchaseGift(ctx, gift); err != nil {
-					gm.counter.Decrement()
-					errCh <- err
-
-					select {
-					case <-time.After(gm.retryDelay):
-					case <-ctx.Done():
-						return
-					}
-					continue
-				}
-
-				gm.balanceCache.TrimBalance(gift.Stars)
-				purchased = true
-				successCh <- gift.ID
-				break
+			if !gm.counter.TryIncrement() {
+				mu.Lock()
+				lastErr = errors.New("max buy count reached")
+				mu.Unlock()
+				return
 			}
 
-			if !purchased {
-				errCh <- errors.New(fmt.Sprintf("failed to buy gift %d after %d attempts", gift.ID, gm.retryCount))
+			if err := gm.purchaseGift(ctx, gift); err != nil {
+				logger.GlobalLogger.Errorf("Failed to purchase gift %d attempt %d. Error: %v", gift.ID, attemptNum+1, err)
+				gm.counter.Decrement()
+				lastErr = err
+				return
 			}
-		}()
+
+			select {
+			case resultChan <- true:
+				logger.GlobalLogger.Infof("Successfully purchased gift %d on attempt %d", gift.ID, attemptNum+1)
+			default:
+				gm.counter.Decrement()
+			}
+		}(attempt)
 	}
 
 	wg.Wait()
-	close(errCh)
-	close(successCh)
 
-	for range successCh {
-		successCount++
+	select {
+	case <-resultChan:
+		resChan <- giftResult{
+			giftID:  gift.ID,
+			success: true,
+			err:     nil,
+		}
+	default:
+		if lastErr == nil {
+			lastErr = errors.New(fmt.Sprintf("failed to buy gift %d after %d attempts", gift.ID, gm.retryCount))
+		}
+		resChan <- giftResult{
+			giftID:  gift.ID,
+			success: false,
+			err:     lastErr,
+		}
 	}
-
-	var errList []error
-	for err := range errCh {
-		errList = append(errList, err)
-	}
-
-	if len(errList) > 0 {
-		logger.GlobalLogger.Warnf("Gift %d: %d successful, %d failed purchases",
-			gift.ID, successCount, len(errList))
-	}
-
-	return successCount, nil
 }
 
 // validatePurchase checks if a purchase can proceed by validating the user's balance.
@@ -334,12 +355,17 @@ func (gm *GiftBuyerImpl) buyGift(ctx context.Context, gift *tg.StarGift, count i
 //
 // Returns:
 //   - error: validation error if insufficient balance or balance check fails
-func (gm *GiftBuyerImpl) validatePurchase(gift *tg.StarGift) error {
-	if gm.balanceCache.GetBalance() < gift.Stars {
-		return errors.Wrap(errors.ErrBalanceEstimation, "insufficient balance to buy gift")
+func (gm *GiftBuyerImpl) validatePurchase(gift *tg.StarGift) bool {
+	// Для тестирования - если API клиент nil, возвращаем false
+	if gm.api == nil {
+		return false
 	}
 
-	return nil
+	balance, err := gm.api.PaymentsGetStarsStatus(context.Background(), &tg.InputPeerSelf{})
+	if err != nil {
+		return false
+	}
+	return balance.Balance.Amount >= gift.Stars
 }
 
 // purchaseGift executes the actual gift purchase through Telegram's payment API.
@@ -358,10 +384,19 @@ func (gm *GiftBuyerImpl) validatePurchase(gift *tg.StarGift) error {
 // Returns:
 //   - error: payment processing error or API communication failure
 func (gm *GiftBuyerImpl) purchaseGift(ctx context.Context, gift *tg.StarGift) error {
+	// Всегда вызываем rate limiter, даже для тестирования
+	if err := gm.rateLimiter.Acquire(ctx); err != nil {
+		return errors.Wrap(err, "failed to wait for rate limit")
+	}
+
 	// Для тестирования - если API клиент nil, имитируем успешную покупку
 	if gm.api == nil {
 		time.Sleep(time.Millisecond * 1) // Имитируем задержку API
 		return nil
+	}
+
+	if !gm.validatePurchase(gift) {
+		return errors.New("insufficient balance to buy gift")
 	}
 
 	paymentForm, invoice, err := gm.createPaymentForm(ctx, gift)
@@ -383,6 +418,9 @@ func (gm *GiftBuyerImpl) purchaseGift(ctx context.Context, gift *tg.StarGift) er
 }
 
 func (gm *GiftBuyerImpl) createPaymentForm(ctx context.Context, gift *tg.StarGift) (tg.PaymentsPaymentFormClass, *tg.InputInvoiceStarGift, error) {
+	jitter := time.Duration(atomic.AddInt64(&gm.requestCounter, 1)%10) * time.Millisecond
+	time.Sleep(jitter)
+
 	invoice, err := gm.createInvoice(gift)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "failed to create invoice")
@@ -391,13 +429,16 @@ func (gm *GiftBuyerImpl) createPaymentForm(ctx context.Context, gift *tg.StarGif
 	paymentFormRequest := &tg.PaymentsGetPaymentFormRequest{
 		Invoice: invoice,
 	}
-
 	paymentForm, err := gm.api.PaymentsGetPaymentForm(ctx, paymentFormRequest)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "failed to get payment form")
 	}
 
 	return paymentForm, invoice, nil
+}
+
+func (gm *GiftBuyerImpl) Close() {
+	gm.rateLimiter.Close()
 }
 
 func (gm *GiftBuyerImpl) sendStarsForm(ctx context.Context, invoice *tg.InputInvoiceStarGift, id int64) error {
@@ -445,40 +486,56 @@ func (gm *GiftBuyerImpl) createInvoice(gift *tg.StarGift) (*tg.InputInvoiceStarG
 }
 
 func (gm *GiftBuyerImpl) selfPurchase(gift *tg.StarGift) (*tg.InputInvoiceStarGift, error) {
+	timestamp := time.Now().UnixNano()
+
 	invoice := &tg.InputInvoiceStarGift{
-		Peer:   &tg.InputPeerSelf{},
-		GiftID: gift.ID,
+		Peer:     &tg.InputPeerSelf{},
+		GiftID:   gift.ID,
+		HideName: true,
+		Message: tg.TextWithEntities{
+			Text: fmt.Sprintf("By @chiefssq %s_%d", RandString5(10), timestamp),
+		},
 	}
 	return invoice, nil
 }
 
 func (gm *GiftBuyerImpl) userPurchase(gift *tg.StarGift) (*tg.InputInvoiceStarGift, error) {
-	ctx := context.Background()
-	userInfo, err := gm.getUserInfo(ctx, int64(selectRandomElementFast(gm.userReceiver)))
+	userInfo, err := gm.getUserInfo(context.Background(), int64(selectRandomElementFast(gm.userReceiver)))
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot create invoice without user access hash")
 	}
+
+	timestamp := time.Now().UnixNano()
+
 	invoice := &tg.InputInvoiceStarGift{
 		Peer:     &tg.InputPeerUser{UserID: userInfo.ID, AccessHash: userInfo.AccessHash},
 		GiftID:   gift.ID,
 		HideName: true,
+		Message: tg.TextWithEntities{
+			Text: fmt.Sprintf("By @chiefssq %s_%d", RandString5(10), timestamp),
+		},
 	}
 	return invoice, nil
 }
 
 func (gm *GiftBuyerImpl) channelPurchase(gift *tg.StarGift) (*tg.InputInvoiceStarGift, error) {
-	ctx := context.Background()
-	channelInfo, err := gm.getChannelInfo(ctx, int64(selectRandomElementFast(gm.channelReceiver)))
+	channelInfo, err := gm.getChannelInfo(context.Background(), int64(selectRandomElementFast(gm.channelReceiver)))
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot create invoice without channel access hash")
 	}
+
+	timestamp := time.Now().UnixNano()
 
 	invoice := &tg.InputInvoiceStarGift{
 		Peer: &tg.InputPeerChannel{
 			ChannelID:  channelInfo.ID,
 			AccessHash: channelInfo.AccessHash,
 		},
-		GiftID: gift.ID,
+		GiftID:   gift.ID,
+		HideName: true,
+		Message: tg.TextWithEntities{
+			Text: fmt.Sprintf("By @chiefssq %s_%d", RandString5(10), timestamp),
+		},
 	}
 	return invoice, nil
 }
@@ -500,6 +557,11 @@ func (gm *GiftBuyerImpl) getChannelInfo(ctx context.Context, channelID int64) (*
 		return channel, nil
 	}
 
+	// Для тестирования - если API клиент nil, возвращаем ошибку
+	if gm.api == nil {
+		return nil, errors.New("channel not found")
+	}
+
 	var actualChannelID int64
 	if channelID < -1000000000000 {
 		actualChannelID = -channelID - 1000000000000
@@ -518,7 +580,6 @@ func (gm *GiftBuyerImpl) getChannelInfo(ctx context.Context, channelID int64) (*
 
 	for _, chat := range channels.GetChats() {
 		if channel, ok := chat.(*tg.Channel); ok {
-			logger.GlobalLogger.Debugf("found channel %d with access hash %d", channel.ID, channel.AccessHash)
 			gm.idCache.SetChannel(channel)
 			return channel, nil
 		}
@@ -549,6 +610,11 @@ func (gm *GiftBuyerImpl) getUserInfo(ctx context.Context, userID int64) (*tg.Use
 		return user, nil
 	}
 
+	// Для тестирования - если API клиент nil, возвращаем ошибку
+	if gm.api == nil {
+		return nil, errors.New("user not found")
+	}
+
 	contacts, err := gm.api.ContactsGetContacts(ctx, 0)
 	if err != nil {
 		return nil, err
@@ -566,7 +632,7 @@ func (gm *GiftBuyerImpl) getUserInfo(ctx context.Context, userID int64) (*tg.Use
 			}
 		}
 	default:
-		fmt.Println("unexpected response type:", fmt.Sprintf("%T", contacts))
+		logger.GlobalLogger.Errorf("unexpected response type:", fmt.Sprintf("%T", contacts))
 	}
 	return nil, errors.New(fmt.Sprintf("user %d not accessible: session hasn't met this user. See logs for solutions.", userID))
 }

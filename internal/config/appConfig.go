@@ -31,9 +31,6 @@ type SoftConfig struct {
 	// Ticker is the monitoring interval in seconds
 	Ticker float64 `json:"ticker"`
 
-	// BalanceTicker is the balance monitoring interval in seconds
-	BalanceTicker float64 `json:"balance_ticker"`
-
 	// RetryCount is the number of retries for failed purchases
 	RetryCount int `json:"retry_count"`
 
@@ -54,6 +51,9 @@ type SoftConfig struct {
 
 	// ConcurrentOperations is the maximum number of concurrent operations
 	ConcurrentOperations int `json:"concurrent_operations"`
+
+	// RPCRateLimit is the rate limit for RPC requests
+	RPCRateLimit int `json:"rpc_rate_limit"`
 }
 
 // TgSettings contains all Telegram-related configuration parameters.

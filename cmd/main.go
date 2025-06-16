@@ -53,11 +53,6 @@ func main() {
 		service.Start()
 	}()
 
-	go func() {
-		logger.GlobalLogger.Info("Starting balance monitoring...")
-		service.BalanceMonitoring(context.Background())
-	}()
-
 	logger.GlobalLogger.Info("Gift buyer service started. Press Ctrl+C to stop.")
 	gracefulShutdown(service)
 	logger.GlobalLogger.Info("Application terminated")

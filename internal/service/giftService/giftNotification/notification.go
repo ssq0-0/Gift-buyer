@@ -5,16 +5,30 @@ package giftNotification
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"fmt"
 	"gift-buyer/internal/config"
 	"gift-buyer/internal/service/giftService/giftInterfaces"
 	"gift-buyer/pkg/logger"
-	"math/rand"
+	mathRand "math/rand"
 	"strings"
 	"time"
 
 	"github.com/gotd/td/tg"
 )
+
+// cryptoRandomInt63 генерирует криптографически стойкое случайное число
+func cryptoRandomInt63() int64 {
+	var randomBytes [8]byte
+	if _, err := rand.Read(randomBytes[:]); err != nil {
+		// Fallback на math/rand если crypto/rand недоступен
+		return mathRand.Int63()
+	}
+	// Безопасное преобразование с маскированием старшего бита
+	val := binary.BigEndian.Uint64(randomBytes[:])
+	return int64(val >> 1) // Сдвиг вправо гарантирует положительное значение
+}
 
 // NotificationServiceImpl implements the NotificationService interface for sending
 // Telegram notifications about gift discoveries and purchase status updates.
@@ -71,7 +85,7 @@ func (ns *NotificationServiceImpl) sendNotification(ctx context.Context, message
 				UserID: ns.Config.NotificationChatID,
 			},
 			Message:  message,
-			RandomID: rand.Int63(),
+			RandomID: cryptoRandomInt63(),
 		})
 
 		if err == nil {

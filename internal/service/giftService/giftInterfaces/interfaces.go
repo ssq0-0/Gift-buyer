@@ -51,7 +51,10 @@ type GiftBuyer interface {
 	//
 	// Returns:
 	//   - error: purchase error, payment failure, or API communication error
-	BuyGift(ctx context.Context, gifts map[*tg.StarGift]int64) error
+	BuyGift(ctx context.Context, gifts map[*tg.StarGift]int64)
+
+	// Close releases any resources held by the gift buyer (e.g., rate limiter).
+	Close()
 }
 
 // GiftCache defines the interface for caching gift information.
@@ -185,23 +188,19 @@ type UserCache interface {
 	GetChannel(id int64) (*tg.Channel, error)
 }
 
-// BalanceCache defines the interface for caching the balance of the user
-type BalanceCache interface {
-	// SetBalance sets the balance of the user
+// RateLimiter defines the interface for rate limiting API calls.
+// It provides methods to acquire and release tokens for API requests.
+type RateLimiter interface {
+	// Acquire acquires a token from the rate limiter.
+	// It blocks until a token is available or the context is cancelled.
 	//
 	// Parameters:
-	//   - balance: the balance to set
-	SetBalance(balance int64)
-
-	// GetBalance gets the balance of the user
+	//   - ctx: context for request cancellation and timeout control
 	//
 	// Returns:
-	//   - int64: the balance of the user
-	GetBalance() int64
+	Acquire(ctx context.Context) error
 
-	// TrimBalance trims the balance of the user
-	//
-	// Parameters:
-	//   - deduction: the amount to trim from the balance
-	TrimBalance(deduction int64)
+	// Close releases any resources held by the rate limiter.
+	// It should be called when the rate limiter is no longer needed.
+	Close()
 }

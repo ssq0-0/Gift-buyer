@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"gift-buyer/internal/config"
-	"gift-buyer/internal/service/giftService/cache/balanceCache"
 	"gift-buyer/internal/service/giftService/cache/giftCache"
 	"gift-buyer/internal/service/giftService/cache/idCache"
 	"gift-buyer/internal/service/giftService/giftBuyer"
@@ -14,6 +13,7 @@ import (
 	"gift-buyer/internal/service/giftService/giftMonitor"
 	"gift-buyer/internal/service/giftService/giftNotification"
 	"gift-buyer/internal/service/giftService/giftValidator"
+	"gift-buyer/internal/service/giftService/rateLimiter"
 	"gift-buyer/pkg/logger"
 	"os"
 	"strings"
@@ -100,10 +100,11 @@ func (f *Factory) CreateSystem() (GiftService, error) {
 	manager := giftManager.NewGiftManager(client.API())
 	cache := giftCache.NewGiftCache()
 	userCache := idCache.NewIDCache()
-	balanceCache := balanceCache.NewBalanceCache()
 	notification := giftNotification.NewNotification(botClient, &f.cfg.TgSettings)
 	monitor := giftMonitor.NewGiftMonitor(cache, manager, validator, notification, time.Duration(f.cfg.Ticker*1000)*time.Millisecond)
-	buyer := giftBuyer.NewGiftBuyer(client.API(), f.cfg.Receiver.UserReceiverID, f.cfg.Receiver.ChannelReceiverID, f.cfg.Receiver.Type, manager, notification, f.cfg.MaxBuyCount, f.cfg.RetryCount, time.Duration(f.cfg.RetryDelay*1000)*time.Millisecond, balanceCache, userCache, f.cfg.ConcurrencyGiftCount, f.cfg.ConcurrentOperations)
+	rl := rateLimiter.NewRateLimiter(f.cfg.RPCRateLimit)
+
+	buyer := giftBuyer.NewGiftBuyer(client.API(), f.cfg.Receiver.UserReceiverID, f.cfg.Receiver.ChannelReceiverID, f.cfg.Receiver.Type, manager, notification, f.cfg.MaxBuyCount, f.cfg.RetryCount, userCache, f.cfg.ConcurrencyGiftCount, rl, f.cfg.ConcurrentOperations)
 
 	service := NewGiftService(
 		manager,
@@ -115,8 +116,6 @@ func (f *Factory) CreateSystem() (GiftService, error) {
 		ctx,
 		cancel,
 		api,
-		time.NewTicker(time.Duration(f.cfg.BalanceTicker*1000)*time.Millisecond),
-		balanceCache,
 	)
 
 	return service, nil
@@ -125,11 +124,8 @@ func (f *Factory) CreateSystem() (GiftService, error) {
 func (f *Factory) createDeviceConfig() telegram.DeviceConfig {
 	config := telegram.DeviceConfig{}
 
-	// Устанавливаем значения по умолчанию
 	config.SetDefaults()
 
-	// Переопределяем значениями из конфигурации, если они заданы
-	// Иначе используем реалистичные значения для macOS
 	if f.cfg.TgSettings.DeviceModel != "" {
 		config.DeviceModel = f.cfg.TgSettings.DeviceModel
 	} else {
@@ -220,7 +216,9 @@ func (f *Factory) initClient(client *telegram.Client, ctx context.Context) (*tg.
 				logger.GlobalLogger.Errorf("Authentication failed: %v", err)
 				if strings.Contains(err.Error(), "AUTH_RESTART") {
 					logger.GlobalLogger.Warn("AUTH_RESTART received, clearing session file")
-					os.Remove("session.json")
+					if removeErr := os.Remove("session.json"); removeErr != nil {
+						logger.GlobalLogger.Warnf("Failed to remove session file: %v", removeErr)
+					}
 				}
 				return err
 			}

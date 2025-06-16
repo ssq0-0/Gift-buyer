@@ -14,6 +14,14 @@ import (
 )
 
 func TestLoadConfig_Success(t *testing.T) {
+	// Set up environment variables for testing
+	t.Setenv("TG_APP_ID", "123456")
+	t.Setenv("TG_API_HASH", "test_api_hash")
+	t.Setenv("TG_PHONE", "+1234567890")
+	t.Setenv("TG_PASSWORD", "test_password")
+	t.Setenv("TG_BOT_KEY", "test_bot_key")
+	t.Setenv("TG_NOTIFICATION_CHAT_ID", "987654321")
+
 	// Create a temporary config file
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "config.json")
@@ -21,12 +29,6 @@ func TestLoadConfig_Success(t *testing.T) {
 	config := &AppConfig{
 		LoggerLevel: "info",
 		SoftConfig: SoftConfig{
-			TgSettings: TgSettings{
-				AppId:    123456,
-				ApiHash:  "test_api_hash",
-				Phone:    "+1234567890",
-				Password: "test_password",
-			},
 			Criterias: []Criterias{
 				{
 					MinPrice:    100,
@@ -53,10 +55,11 @@ func TestLoadConfig_Success(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, loadedConfig)
 	assert.Equal(t, config.LoggerLevel, loadedConfig.LoggerLevel)
-	assert.Equal(t, config.SoftConfig.TgSettings.AppId, loadedConfig.SoftConfig.TgSettings.AppId)
-	assert.Equal(t, config.SoftConfig.TgSettings.ApiHash, loadedConfig.SoftConfig.TgSettings.ApiHash)
-	assert.Equal(t, config.SoftConfig.TgSettings.Phone, loadedConfig.SoftConfig.TgSettings.Phone)
-	assert.Equal(t, config.SoftConfig.TgSettings.Password, loadedConfig.SoftConfig.TgSettings.Password)
+	// TgSettings are loaded from environment variables, not from config file
+	assert.Equal(t, 123456, loadedConfig.SoftConfig.TgSettings.AppId)
+	assert.Equal(t, "test_api_hash", loadedConfig.SoftConfig.TgSettings.ApiHash)
+	assert.Equal(t, "+1234567890", loadedConfig.SoftConfig.TgSettings.Phone)
+	assert.Equal(t, "test_password", loadedConfig.SoftConfig.TgSettings.Password)
 	assert.Equal(t, len(config.SoftConfig.Criterias), len(loadedConfig.SoftConfig.Criterias))
 	assert.Equal(t, config.SoftConfig.Criterias[0].MinPrice, loadedConfig.SoftConfig.Criterias[0].MinPrice)
 	assert.Equal(t, config.SoftConfig.Criterias[0].MaxPrice, loadedConfig.SoftConfig.Criterias[0].MaxPrice)
@@ -111,6 +114,11 @@ func TestLoadConfig_EmptyFile(t *testing.T) {
 }
 
 func TestLoadConfig_PartialConfig(t *testing.T) {
+	// Set up environment variables for testing
+	t.Setenv("TG_APP_ID", "123456")
+	t.Setenv("TG_API_HASH", "test_api_hash")
+	t.Setenv("TG_PHONE", "+1234567890")
+
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "partial_config.json")
 
@@ -135,17 +143,24 @@ func TestLoadConfig_PartialConfig(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, config)
 	assert.Equal(t, "debug", config.LoggerLevel)
+	// TgSettings are loaded from environment variables
 	assert.Equal(t, 123456, config.SoftConfig.TgSettings.AppId)
-	assert.Equal(t, "test_hash", config.SoftConfig.TgSettings.ApiHash)
+	assert.Equal(t, "test_api_hash", config.SoftConfig.TgSettings.ApiHash)
+	assert.Equal(t, "+1234567890", config.SoftConfig.TgSettings.Phone)
 	assert.Equal(t, 60.0, config.SoftConfig.Ticker)
 	// Other fields should have zero values
-	assert.Equal(t, "", config.SoftConfig.TgSettings.Phone)
 	assert.Equal(t, "", config.SoftConfig.TgSettings.Password)
 	assert.Equal(t, ReceiverParams{Type: []int(nil), UserReceiverID: []int(nil)}, config.SoftConfig.Receiver)
 	assert.Empty(t, config.SoftConfig.Criterias)
 }
 
 func TestLoadConfig_MultipleCriterias(t *testing.T) {
+	// Set up environment variables for testing
+	t.Setenv("TG_APP_ID", "789012")
+	t.Setenv("TG_API_HASH", "multi_test_hash")
+	t.Setenv("TG_PHONE", "+9876543210")
+	t.Setenv("TG_PASSWORD", "multi_password")
+
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "multi_criteria_config.json")
 
@@ -210,18 +225,17 @@ func TestLoadConfig_MultipleCriterias(t *testing.T) {
 }
 
 func TestLoadConfig_ZeroValues(t *testing.T) {
+	// Set up minimal environment variables for testing
+	t.Setenv("TG_APP_ID", "1")
+	t.Setenv("TG_API_HASH", "test")
+	t.Setenv("TG_PHONE", "+1")
+
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "zero_config.json")
 
 	config := &AppConfig{
 		LoggerLevel: "",
 		SoftConfig: SoftConfig{
-			TgSettings: TgSettings{
-				AppId:    0,
-				ApiHash:  "",
-				Phone:    "",
-				Password: "",
-			},
 			Criterias: []Criterias{
 				{
 					MinPrice:    0,
@@ -246,9 +260,10 @@ func TestLoadConfig_ZeroValues(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, loadedConfig)
 	assert.Equal(t, "", loadedConfig.LoggerLevel)
-	assert.Equal(t, 0, loadedConfig.SoftConfig.TgSettings.AppId)
-	assert.Equal(t, "", loadedConfig.SoftConfig.TgSettings.ApiHash)
-	assert.Equal(t, "", loadedConfig.SoftConfig.TgSettings.Phone)
+	// TgSettings are loaded from environment variables
+	assert.Equal(t, 1, loadedConfig.SoftConfig.TgSettings.AppId)
+	assert.Equal(t, "test", loadedConfig.SoftConfig.TgSettings.ApiHash)
+	assert.Equal(t, "+1", loadedConfig.SoftConfig.TgSettings.Phone)
 	assert.Equal(t, "", loadedConfig.SoftConfig.TgSettings.Password)
 	assert.Equal(t, 1, len(loadedConfig.SoftConfig.Criterias))
 	assert.Equal(t, int64(0), loadedConfig.SoftConfig.Criterias[0].MinPrice)
@@ -256,6 +271,37 @@ func TestLoadConfig_ZeroValues(t *testing.T) {
 	assert.Equal(t, int64(0), loadedConfig.SoftConfig.Criterias[0].TotalSupply)
 	assert.Equal(t, ReceiverParams{Type: []int{0}, UserReceiverID: []int{0}}, loadedConfig.SoftConfig.Receiver)
 	assert.Equal(t, 0.0, loadedConfig.SoftConfig.Ticker)
+}
+
+func TestLoadConfig_MissingEnvVars(t *testing.T) {
+	// Don't set any environment variables to test the error case
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "config.json")
+
+	config := &AppConfig{
+		LoggerLevel: "info",
+		SoftConfig: SoftConfig{
+			Criterias: []Criterias{
+				{
+					MinPrice:    100,
+					MaxPrice:    1000,
+					TotalSupply: 50,
+				},
+			},
+			Ticker: 30.0,
+		},
+	}
+
+	data, err := json.Marshal(config)
+	require.NoError(t, err)
+	err = os.WriteFile(configPath, data, 0644)
+	require.NoError(t, err)
+
+	// Should fail because environment variables are not set
+	loadedConfig, err := LoadConfig(configPath)
+	assert.Error(t, err)
+	assert.Nil(t, loadedConfig)
+	assert.True(t, errors.Is(err, pkgErrors.ErrConfigParse))
 }
 
 func TestLoadConfig_PermissionDenied(t *testing.T) {

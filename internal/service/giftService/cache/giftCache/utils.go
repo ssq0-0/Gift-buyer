@@ -73,7 +73,9 @@ func (gc *GiftCacheImpl) loadFromFile() {
 func (gc *GiftCacheImpl) saveToFile() {
 	var existingCache map[string]CachedGift
 	if data, err := os.ReadFile("cache.json"); err == nil {
-		json.Unmarshal(data, &existingCache)
+		if unmarshalErr := json.Unmarshal(data, &existingCache); unmarshalErr != nil {
+			logger.GlobalLogger.Warnf("Failed to unmarshal existing cache: %v", unmarshalErr)
+		}
 	}
 	if existingCache == nil {
 		existingCache = make(map[string]CachedGift)
@@ -103,7 +105,7 @@ func (gc *GiftCacheImpl) saveToFile() {
 		return
 	}
 
-	if err := os.WriteFile("cache.json", jsonData, 0644); err != nil {
+	if err := os.WriteFile("cache.json", jsonData, 0600); err != nil {
 		logger.GlobalLogger.Errorf("Failed to write cache to file: %v", err)
 		return
 	}
