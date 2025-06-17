@@ -48,6 +48,10 @@ func main() {
 		logger.GlobalLogger.Fatalf("Failed to init telegram client: %v", err)
 	}
 
+	if err = service.SetIds(context.Background()); err != nil {
+		logger.GlobalLogger.Fatalf("Failed to set IDs: %v", err)
+	}
+
 	go func() {
 		logger.GlobalLogger.Info("Starting gift service...")
 		service.Start()

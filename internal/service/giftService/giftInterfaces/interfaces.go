@@ -204,3 +204,7 @@ type RateLimiter interface {
 	// It should be called when the rate limiter is no longer needed.
 	Close()
 }
+
+type AccountManager interface {
+	SetIds(ctx context.Context) error
+}

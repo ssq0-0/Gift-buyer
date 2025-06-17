@@ -9,10 +9,12 @@ import (
 	"gift-buyer/internal/service/giftService/giftInterfaces"
 	"gift-buyer/pkg/errors"
 	"gift-buyer/pkg/logger"
+	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gotd/td/tg"
 )
 
@@ -265,84 +267,61 @@ func (gm *GiftBuyerImpl) buyGift(ctx context.Context, gift *tg.StarGift, count i
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
 
-			gm.buyGiftWithRetry(ctx, gift, sem, resChan)
+			gm.buyGiftWithRetry(ctx, gift, resChan)
 		}()
 	}
 
 	wg.Wait()
 }
 
-func (gm *GiftBuyerImpl) buyGiftWithRetry(ctx context.Context, gift *tg.StarGift, sem chan struct{}, resChan chan<- giftResult) {
-	attemptChan := make(chan int, gm.retryCount)
-	resultChan := make(chan bool, 1)
+func (gm *GiftBuyerImpl) buyGiftWithRetry(ctx context.Context, gift *tg.StarGift, resChan chan<- giftResult) {
 	var lastErr error
-	var mu sync.Mutex
 
 	for j := 0; j < gm.retryCount; j++ {
-		attemptChan <- j
-	}
-	close(attemptChan)
-
-	var wg sync.WaitGroup
-
-	for attempt := range attemptChan {
-		wg.Add(1)
-		go func(attemptNum int) {
-			defer wg.Done()
-
-			select {
-			case <-ctx.Done():
-				return
-			case <-resultChan:
-				return
-			default:
+		select {
+		case <-ctx.Done():
+			resChan <- giftResult{
+				giftID:  gift.ID,
+				success: false,
+				err:     ctx.Err(),
 			}
+			return
+		default:
+		}
 
-			sem <- struct{}{}
-			defer func() { <-sem }()
-
-			if !gm.counter.TryIncrement() {
-				mu.Lock()
-				lastErr = errors.New("max buy count reached")
-				mu.Unlock()
-				return
+		if !gm.counter.TryIncrement() {
+			lastErr = errors.New("max buy count reached")
+			resChan <- giftResult{
+				giftID:  gift.ID,
+				success: false,
+				err:     lastErr,
 			}
+			return
+		}
 
-			if err := gm.purchaseGift(ctx, gift); err != nil {
-				logger.GlobalLogger.Errorf("Failed to purchase gift %d attempt %d. Error: %v", gift.ID, attemptNum+1, err)
-				gm.counter.Decrement()
-				lastErr = err
-				return
-			}
+		if err := gm.purchaseGift(ctx, gift); err != nil {
+			logger.GlobalLogger.Errorf("Failed to purchase gift %d attempt %d. Error: %v", gift.ID, j+1, err)
+			gm.counter.Decrement()
+			lastErr = err
+			continue
+		}
 
-			select {
-			case resultChan <- true:
-				logger.GlobalLogger.Infof("Successfully purchased gift %d on attempt %d", gift.ID, attemptNum+1)
-			default:
-				gm.counter.Decrement()
-			}
-		}(attempt)
-	}
-
-	wg.Wait()
-
-	select {
-	case <-resultChan:
+		logger.GlobalLogger.Infof("Successfully purchased gift %d on attempt %d", gift.ID, j+1)
 		resChan <- giftResult{
 			giftID:  gift.ID,
 			success: true,
 			err:     nil,
 		}
-	default:
-		if lastErr == nil {
-			lastErr = errors.New(fmt.Sprintf("failed to buy gift %d after %d attempts", gift.ID, gm.retryCount))
-		}
-		resChan <- giftResult{
-			giftID:  gift.ID,
-			success: false,
-			err:     lastErr,
-		}
+		return
+	}
+
+	resChan <- giftResult{
+		giftID:  gift.ID,
+		success: false,
+		err:     lastErr,
 	}
 }
 
@@ -384,11 +363,6 @@ func (gm *GiftBuyerImpl) validatePurchase(gift *tg.StarGift) bool {
 // Returns:
 //   - error: payment processing error or API communication failure
 func (gm *GiftBuyerImpl) purchaseGift(ctx context.Context, gift *tg.StarGift) error {
-	// Всегда вызываем rate limiter, даже для тестирования
-	if err := gm.rateLimiter.Acquire(ctx); err != nil {
-		return errors.Wrap(err, "failed to wait for rate limit")
-	}
-
 	// Для тестирования - если API клиент nil, имитируем успешную покупку
 	if gm.api == nil {
 		time.Sleep(time.Millisecond * 1) // Имитируем задержку API
@@ -418,7 +392,7 @@ func (gm *GiftBuyerImpl) purchaseGift(ctx context.Context, gift *tg.StarGift) er
 }
 
 func (gm *GiftBuyerImpl) createPaymentForm(ctx context.Context, gift *tg.StarGift) (tg.PaymentsPaymentFormClass, *tg.InputInvoiceStarGift, error) {
-	jitter := time.Duration(atomic.AddInt64(&gm.requestCounter, 1)%10) * time.Millisecond
+	jitter := time.Duration(atomic.AddInt64(&gm.requestCounter, 1)%100) * time.Millisecond
 	time.Sleep(jitter)
 
 	invoice, err := gm.createInvoice(gift)
@@ -426,6 +400,9 @@ func (gm *GiftBuyerImpl) createPaymentForm(ctx context.Context, gift *tg.StarGif
 		return nil, nil, errors.Wrap(err, "failed to create invoice")
 	}
 
+	if err := gm.rateLimiter.Acquire(ctx); err != nil {
+		return nil, nil, errors.Wrap(err, "failed to wait for rate limit")
+	}
 	paymentFormRequest := &tg.PaymentsGetPaymentFormRequest{
 		Invoice: invoice,
 	}
@@ -486,14 +463,12 @@ func (gm *GiftBuyerImpl) createInvoice(gift *tg.StarGift) (*tg.InputInvoiceStarG
 }
 
 func (gm *GiftBuyerImpl) selfPurchase(gift *tg.StarGift) (*tg.InputInvoiceStarGift, error) {
-	timestamp := time.Now().UnixNano()
-
 	invoice := &tg.InputInvoiceStarGift{
 		Peer:     &tg.InputPeerSelf{},
 		GiftID:   gift.ID,
 		HideName: true,
 		Message: tg.TextWithEntities{
-			Text: fmt.Sprintf("By @chiefssq %s_%d", RandString5(10), timestamp),
+			Text: fmt.Sprintf("By @chiefssq %s_%d_%s", RandString5(10), time.Now().UnixNano(), uuid.New().String()[:6]),
 		},
 	}
 	return invoice, nil
@@ -505,14 +480,12 @@ func (gm *GiftBuyerImpl) userPurchase(gift *tg.StarGift) (*tg.InputInvoiceStarGi
 		return nil, errors.Wrap(err, "cannot create invoice without user access hash")
 	}
 
-	timestamp := time.Now().UnixNano()
-
 	invoice := &tg.InputInvoiceStarGift{
 		Peer:     &tg.InputPeerUser{UserID: userInfo.ID, AccessHash: userInfo.AccessHash},
 		GiftID:   gift.ID,
-		HideName: true,
+		HideName: rand.Intn(2) == 0,
 		Message: tg.TextWithEntities{
-			Text: fmt.Sprintf("By @chiefssq %s_%d", RandString5(10), timestamp),
+			Text: fmt.Sprintf("By @chiefssq %s_%d_%s", RandString5(10), time.Now().UnixNano(), uuid.New().String()[:6]),
 		},
 	}
 	return invoice, nil
@@ -524,8 +497,6 @@ func (gm *GiftBuyerImpl) channelPurchase(gift *tg.StarGift) (*tg.InputInvoiceSta
 		return nil, errors.Wrap(err, "cannot create invoice without channel access hash")
 	}
 
-	timestamp := time.Now().UnixNano()
-
 	invoice := &tg.InputInvoiceStarGift{
 		Peer: &tg.InputPeerChannel{
 			ChannelID:  channelInfo.ID,
@@ -534,7 +505,7 @@ func (gm *GiftBuyerImpl) channelPurchase(gift *tg.StarGift) (*tg.InputInvoiceSta
 		GiftID:   gift.ID,
 		HideName: true,
 		Message: tg.TextWithEntities{
-			Text: fmt.Sprintf("By @chiefssq %s_%d", RandString5(10), timestamp),
+			Text: fmt.Sprintf("By @chiefssq %s_%d", RandString5(10), time.Now().UnixNano()),
 		},
 	}
 	return invoice, nil
@@ -555,34 +526,6 @@ func (gm *GiftBuyerImpl) getChannelInfo(ctx context.Context, channelID int64) (*
 	channel, err := gm.idCache.GetChannel(channelID)
 	if err == nil {
 		return channel, nil
-	}
-
-	// Для тестирования - если API клиент nil, возвращаем ошибку
-	if gm.api == nil {
-		return nil, errors.New("channel not found")
-	}
-
-	var actualChannelID int64
-	if channelID < -1000000000000 {
-		actualChannelID = -channelID - 1000000000000
-	} else {
-		actualChannelID = channelID
-	}
-
-	channels, err := gm.api.ChannelsGetChannels(ctx, []tg.InputChannelClass{
-		&tg.InputChannel{
-			ChannelID: actualChannelID,
-		},
-	})
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get channel info via ChannelsGetChannels")
-	}
-
-	for _, chat := range channels.GetChats() {
-		if channel, ok := chat.(*tg.Channel); ok {
-			gm.idCache.SetChannel(channel)
-			return channel, nil
-		}
 	}
 
 	return nil, errors.New("channel not found")
@@ -610,29 +553,5 @@ func (gm *GiftBuyerImpl) getUserInfo(ctx context.Context, userID int64) (*tg.Use
 		return user, nil
 	}
 
-	// Для тестирования - если API клиент nil, возвращаем ошибку
-	if gm.api == nil {
-		return nil, errors.New("user not found")
-	}
-
-	contacts, err := gm.api.ContactsGetContacts(ctx, 0)
-	if err != nil {
-		return nil, err
-	}
-	switch v := contacts.(type) {
-	case *tg.ContactsContacts:
-		for _, user := range v.Users {
-			u, ok := user.(*tg.User)
-			if !ok {
-				continue
-			}
-			if u.ID == userID {
-				gm.idCache.SetUser(u)
-				return u, nil
-			}
-		}
-	default:
-		logger.GlobalLogger.Errorf("unexpected response type:", fmt.Sprintf("%T", contacts))
-	}
 	return nil, errors.New(fmt.Sprintf("user %d not accessible: session hasn't met this user. See logs for solutions.", userID))
 }

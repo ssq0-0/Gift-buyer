@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"gift-buyer/internal/config"
+	"gift-buyer/internal/service/giftService/accountManager"
 	"gift-buyer/internal/service/giftService/cache/giftCache"
 	"gift-buyer/internal/service/giftService/cache/idCache"
 	"gift-buyer/internal/service/giftService/giftBuyer"
@@ -103,7 +104,7 @@ func (f *Factory) CreateSystem() (GiftService, error) {
 	notification := giftNotification.NewNotification(botClient, &f.cfg.TgSettings)
 	monitor := giftMonitor.NewGiftMonitor(cache, manager, validator, notification, time.Duration(f.cfg.Ticker*1000)*time.Millisecond)
 	rl := rateLimiter.NewRateLimiter(f.cfg.RPCRateLimit)
-
+	accountManager := accountManager.NewAccountManager(client.API(), f.cfg.Receiver.UserReceiverID, f.cfg.Receiver.ChannelReceiverID, userCache)
 	buyer := giftBuyer.NewGiftBuyer(client.API(), f.cfg.Receiver.UserReceiverID, f.cfg.Receiver.ChannelReceiverID, f.cfg.Receiver.Type, manager, notification, f.cfg.MaxBuyCount, f.cfg.RetryCount, userCache, f.cfg.ConcurrencyGiftCount, rl, f.cfg.ConcurrentOperations)
 
 	service := NewGiftService(
@@ -116,6 +117,7 @@ func (f *Factory) CreateSystem() (GiftService, error) {
 		ctx,
 		cancel,
 		api,
+		accountManager,
 	)
 
 	return service, nil

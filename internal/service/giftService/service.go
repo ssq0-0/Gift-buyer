@@ -8,7 +8,6 @@ import (
 	"gift-buyer/internal/service/giftService/giftInterfaces"
 	"gift-buyer/pkg/logger"
 	"sync"
-	"time"
 
 	"github.com/gotd/td/tg"
 )
@@ -22,6 +21,9 @@ type GiftService interface {
 
 	// Stop gracefully shuts down the gift service and all its components.
 	Stop()
+
+	// SetIds sets the IDs of the accounts
+	SetIds(ctx context.Context) error
 }
 
 // GiftServiceImpl implements the GiftService interface and orchestrates all gift buying operations.
@@ -58,8 +60,8 @@ type GiftServiceImpl struct {
 	// api is the main Telegram client for API operations
 	api *tg.Client
 
-	// balanceTicker controls the balance monitoring interval
-	balanceTicker *time.Ticker
+	// accountManager handles account-related operations
+	accountManager giftInterfaces.AccountManager
 }
 
 // NewGiftService creates a new GiftService instance with all required dependencies.
@@ -88,17 +90,19 @@ func NewGiftService(
 	ctx context.Context,
 	cancel context.CancelFunc,
 	api *tg.Client,
+	accountManager giftInterfaces.AccountManager,
 ) GiftService {
 	return &GiftServiceImpl{
-		manager:      manager,
-		validator:    validator,
-		cache:        cache,
-		notification: notification,
-		monitor:      monitor,
-		buyer:        buyer,
-		ctx:          ctx,
-		cancel:       cancel,
-		api:          api,
+		manager:        manager,
+		validator:      validator,
+		cache:          cache,
+		notification:   notification,
+		monitor:        monitor,
+		buyer:          buyer,
+		ctx:            ctx,
+		cancel:         cancel,
+		api:            api,
+		accountManager: accountManager,
 	}
 }
 
@@ -167,4 +171,8 @@ func (tc *GiftServiceImpl) Stop() {
 	if tc.buyer != nil {
 		tc.buyer.Close()
 	}
+}
+
+func (tc *GiftServiceImpl) SetIds(ctx context.Context) error {
+	return tc.accountManager.SetIds(ctx)
 }
