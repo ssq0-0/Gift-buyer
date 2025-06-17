@@ -6,6 +6,7 @@ package giftMonitor
 import (
 	"context"
 	"gift-buyer/internal/service/giftService/giftInterfaces"
+	"gift-buyer/pkg/errors"
 	"gift-buyer/pkg/logger"
 	"time"
 
@@ -142,10 +143,10 @@ func (gm *GiftMonitorImpl) checkForNewGifts(ctx context.Context) (map[*tg.StarGi
 		gm.cache.SetGift(gift.ID, gift)
 	}
 
-	// if gm.firstRun {
-	// 	gm.firstRun = false
-	// 	return nil, errors.Wrap(errors.New("first run"), "touch grass")
-	// }
+	if gm.firstRun {
+		gm.firstRun = false
+		return nil, errors.Wrap(errors.New("first run"), "touch grass")
+	}
 
 	return newValidGifts, nil
 }
