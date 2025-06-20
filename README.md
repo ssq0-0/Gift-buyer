@@ -1,6 +1,6 @@
 # Gift Buyer - автоматическая покупка Telegram подарков
 
-[![Language: Russian](https://img.shields.io/badge/Language-Русский-blue)](#русский) [![Language: English](https://img.shields.io/badge/Language-English-green)](#english) [![Telegram](https://img.shields.io/badge/Telegram-@chiefssq-blue?logo=telegram)](https://t.me/chiefssq)
+[![Language: Russian](https://img.shields.io/badge/Language-Русский-blue)](#русский) [![Language: English](https://img.shields.io/badge/Language-English-green)](#english) [![Telegram](https://img.shields.io/badge/Telegram-@chiefssq-blue?logo=telegram)](https://t.me/cheifssq)
 
 ---
 
