@@ -2,8 +2,8 @@ package giftBuyer
 
 import (
 	"context"
-	"errors"
-	"strings"
+	"gift-buyer/internal/service/giftService/giftBuyer/atomicCounter"
+	"gift-buyer/internal/service/giftService/giftTypes"
 	"sync"
 	"testing"
 	"time"
@@ -85,6 +85,32 @@ func (m *MockRateLimiter) Close() {
 	}
 }
 
+type MockInvoiceCreator struct {
+	mock.Mock
+}
+
+func (m *MockInvoiceCreator) CreateInvoice(gift *tg.StarGift) (*tg.InputInvoiceStarGift, error) {
+	args := m.Called(gift)
+	return args.Get(0).(*tg.InputInvoiceStarGift), args.Error(1)
+}
+
+type MockPurchaseProcessor struct {
+	mock.Mock
+}
+
+func (m *MockPurchaseProcessor) PurchaseGift(ctx context.Context, gift *tg.StarGift) error {
+	args := m.Called(ctx, gift)
+	return args.Error(0)
+}
+
+type MockMonitorProcessor struct {
+	mock.Mock
+}
+
+func (m *MockMonitorProcessor) MonitorProcess(ctx context.Context, resultsCh chan giftTypes.GiftResult, doneCh chan struct{}, gifts map[*tg.StarGift]int64) {
+	m.Called(ctx, resultsCh, doneCh, gifts)
+}
+
 // Helper functions
 func createTestGift(id int64, stars int64) *tg.StarGift {
 	return &tg.StarGift{
@@ -93,11 +119,14 @@ func createTestGift(id int64, stars int64) *tg.StarGift {
 	}
 }
 
-func createMockBuyer() (*GiftBuyerImpl, *MockGiftManager, *MockNotificationService, *MockUserCache, *MockRateLimiter) {
+func createMockBuyer() (*GiftBuyerImpl, *MockGiftManager, *MockNotificationService, *MockUserCache, *MockRateLimiter, *MockInvoiceCreator, *MockPurchaseProcessor, *MockMonitorProcessor) {
 	mockManager := &MockGiftManager{}
 	mockNotification := &MockNotificationService{}
 	mockUserCache := &MockUserCache{}
 	mockRateLimiter := &MockRateLimiter{}
+	mockInvoiceCreator := &MockInvoiceCreator{}
+	mockPurchaseProcessor := &MockPurchaseProcessor{}
+	mockMonitorProcessor := &MockMonitorProcessor{}
 
 	buyer := &GiftBuyerImpl{
 		manager:              mockManager,
@@ -107,15 +136,18 @@ func createMockBuyer() (*GiftBuyerImpl, *MockGiftManager, *MockNotificationServi
 		userReceiver:         []int{123456},
 		channelReceiver:      []int{789012},
 		receiverType:         []int{0, 1, 2}, // self, user, channel
-		counter:              newAtomicCounter(100),
+		counter:              atomicCounter.NewAtomicCounter(100),
 		retryCount:           3,
 		concurrentGifts:      5,
 		concurrentOperations: 10,
 		requestCounter:       0,
 		rateLimiter:          mockRateLimiter,
+		invoiceCreator:       mockInvoiceCreator,
+		purchaseProcessor:    mockPurchaseProcessor,
+		monitorProcessor:     mockMonitorProcessor,
 	}
 
-	return buyer, mockManager, mockNotification, mockUserCache, mockRateLimiter
+	return buyer, mockManager, mockNotification, mockUserCache, mockRateLimiter, mockInvoiceCreator, mockPurchaseProcessor, mockMonitorProcessor
 }
 
 func TestNewGiftBuyer(t *testing.T) {
@@ -124,6 +156,10 @@ func TestNewGiftBuyer(t *testing.T) {
 		mockNotification := &MockNotificationService{}
 		mockUserCache := &MockUserCache{}
 		mockRateLimiter := &MockRateLimiter{}
+		mockInvoiceCreator := &MockInvoiceCreator{}
+		mockPurchaseProcessor := &MockPurchaseProcessor{}
+		mockMonitorProcessor := &MockMonitorProcessor{}
+		mockCounter := atomicCounter.NewAtomicCounter(100)
 
 		buyer := NewGiftBuyer(
 			nil, // api
@@ -138,6 +174,10 @@ func TestNewGiftBuyer(t *testing.T) {
 			5, // concurrentGifts
 			mockRateLimiter,
 			10, // concurrentOperations
+			mockInvoiceCreator,
+			mockPurchaseProcessor,
+			mockMonitorProcessor,
+			mockCounter,
 		)
 
 		assert.NotNil(t, buyer)
@@ -151,18 +191,19 @@ func TestNewGiftBuyer(t *testing.T) {
 		assert.Equal(t, 5, impl.concurrentGifts)
 		assert.Equal(t, 10, impl.concurrentOperations)
 		assert.NotNil(t, impl.counter)
-		assert.Equal(t, int64(100), impl.counter.GetMax())
+		assert.NotNil(t, impl.invoiceCreator)
+		assert.NotNil(t, impl.purchaseProcessor)
+		assert.NotNil(t, impl.monitorProcessor)
 	})
 }
 
 func TestGiftBuyerImpl_BuyGift(t *testing.T) {
 	t.Run("успешная покупка подарков", func(t *testing.T) {
-		buyer, _, mockNotification, _, mockRateLimiter := createMockBuyer()
+		buyer, _, _, _, _, _, mockPurchaseProcessor, mockMonitorProcessor := createMockBuyer()
 
 		// Настраиваем моки
-		mockNotification.On("SetBot").Return(true)
-		mockNotification.On("SendBuyStatus", mock.Anything, mock.AnythingOfType("string"), mock.Anything).Return(nil)
-		mockRateLimiter.On("Acquire", mock.Anything).Return(nil)
+		mockMonitorProcessor.On("MonitorProcess", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+		mockPurchaseProcessor.On("PurchaseGift", mock.Anything, mock.Anything).Return(nil)
 
 		gifts := map[*tg.StarGift]int64{
 			createTestGift(1, 100): 2,
@@ -190,16 +231,14 @@ func TestGiftBuyerImpl_BuyGift(t *testing.T) {
 		// Даем время для завершения асинхронных операций
 		time.Sleep(100 * time.Millisecond)
 
-		// Проверяем что уведомления были отправлены
-		mockNotification.AssertCalled(t, "SetBot")
-		mockNotification.AssertCalled(t, "SendBuyStatus", mock.Anything, mock.AnythingOfType("string"), mock.Anything)
+		// Проверяем что мониторинг был запущен
+		mockMonitorProcessor.AssertCalled(t, "MonitorProcess", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	})
 
 	t.Run("покупка с пустым списком подарков", func(t *testing.T) {
-		buyer, _, mockNotification, _, _ := createMockBuyer()
+		buyer, _, _, _, _, _, _, mockMonitorProcessor := createMockBuyer()
 
-		mockNotification.On("SetBot").Return(true)
-		mockNotification.On("SendBuyStatus", mock.Anything, mock.AnythingOfType("string"), mock.Anything).Return(nil)
+		mockMonitorProcessor.On("MonitorProcess", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 		gifts := map[*tg.StarGift]int64{}
 
@@ -223,12 +262,14 @@ func TestGiftBuyerImpl_BuyGift(t *testing.T) {
 		// Даем время для завершения асинхронных операций
 		time.Sleep(100 * time.Millisecond)
 
-		// Должно быть отправлено уведомление о том, что ничего не куплено
-		mockNotification.AssertCalled(t, "SetBot")
+		// Мониторинг должен быть запущен даже для пустого списка
+		mockMonitorProcessor.AssertCalled(t, "MonitorProcess", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	})
 
 	t.Run("покупка с отменой контекста", func(t *testing.T) {
-		buyer, _, _, _, _ := createMockBuyer()
+		buyer, _, _, _, _, _, _, mockMonitorProcessor := createMockBuyer()
+
+		mockMonitorProcessor.On("MonitorProcess", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 		gifts := map[*tg.StarGift]int64{
 			createTestGift(1, 100): 1,
@@ -245,7 +286,7 @@ func TestGiftBuyerImpl_BuyGift(t *testing.T) {
 
 func TestGiftBuyerImpl_Close(t *testing.T) {
 	t.Run("закрытие buyer", func(t *testing.T) {
-		buyer, _, _, _, mockRateLimiter := createMockBuyer()
+		buyer, _, _, _, mockRateLimiter, _, _, _ := createMockBuyer()
 
 		mockRateLimiter.On("Close").Return()
 
@@ -255,185 +296,12 @@ func TestGiftBuyerImpl_Close(t *testing.T) {
 	})
 }
 
-func TestGiftBuyerImpl_CreateInvoice(t *testing.T) {
-	t.Run("создание инвойса для self", func(t *testing.T) {
-		buyer, _, _, _, _ := createMockBuyer()
-		buyer.receiverType = []int{0} // только self
-
-		gift := createTestGift(1, 100)
-		invoice, err := buyer.createInvoice(gift)
-
-		assert.NoError(t, err)
-		assert.NotNil(t, invoice)
-		assert.Equal(t, gift.ID, invoice.GiftID)
-		assert.True(t, invoice.HideName)
-
-		// Проверяем что peer это InputPeerSelf
-		_, ok := invoice.Peer.(*tg.InputPeerSelf)
-		assert.True(t, ok)
-	})
-
-	t.Run("создание инвойса для пользователя", func(t *testing.T) {
-		buyer, _, _, mockUserCache, _ := createMockBuyer()
-		buyer.receiverType = []int{1} // только user
-
-		// Настраиваем мок для получения пользователя
-		testUser := &tg.User{
-			ID:         123456,
-			AccessHash: 987654321,
-		}
-		mockUserCache.On("GetUser", int64(123456)).Return(testUser, nil)
-
-		gift := createTestGift(1, 100)
-		invoice, err := buyer.createInvoice(gift)
-
-		assert.NoError(t, err)
-		assert.NotNil(t, invoice)
-		assert.Equal(t, gift.ID, invoice.GiftID)
-
-		// Проверяем что peer это InputPeerUser
-		peerUser, ok := invoice.Peer.(*tg.InputPeerUser)
-		assert.True(t, ok)
-		assert.Equal(t, testUser.ID, peerUser.UserID)
-		assert.Equal(t, testUser.AccessHash, peerUser.AccessHash)
-	})
-
-	t.Run("создание инвойса для канала", func(t *testing.T) {
-		buyer, _, _, mockUserCache, _ := createMockBuyer()
-		buyer.receiverType = []int{2} // только channel
-
-		// Настраиваем мок для получения канала
-		testChannel := &tg.Channel{
-			ID:         789012,
-			AccessHash: 123456789,
-		}
-		mockUserCache.On("GetChannel", int64(789012)).Return(testChannel, nil)
-
-		gift := createTestGift(1, 100)
-		invoice, err := buyer.createInvoice(gift)
-
-		assert.NoError(t, err)
-		assert.NotNil(t, invoice)
-		assert.Equal(t, gift.ID, invoice.GiftID)
-
-		// Проверяем что peer это InputPeerChannel
-		peerChannel, ok := invoice.Peer.(*tg.InputPeerChannel)
-		assert.True(t, ok)
-		assert.Equal(t, testChannel.ID, peerChannel.ChannelID)
-		assert.Equal(t, testChannel.AccessHash, peerChannel.AccessHash)
-	})
-
-	t.Run("ошибка при получении пользователя", func(t *testing.T) {
-		buyer, _, _, mockUserCache, _ := createMockBuyer()
-		buyer.receiverType = []int{1} // только user
-
-		// Настраиваем мок для возврата ошибки из кеша
-		mockUserCache.On("GetUser", int64(123456)).Return((*tg.User)(nil), errors.New("user not found"))
-
-		gift := createTestGift(1, 100)
-		invoice, err := buyer.createInvoice(gift)
-
-		assert.Error(t, err)
-		assert.Nil(t, invoice)
-		// Ошибка может быть либо от кеша, либо от API (так как API nil)
-		assert.True(t,
-			strings.Contains(err.Error(), "cannot create invoice without user access hash") ||
-				strings.Contains(err.Error(), "user not found"))
-	})
-
-	t.Run("неподдерживаемый тип получателя", func(t *testing.T) {
-		buyer, _, _, _, _ := createMockBuyer()
-		buyer.receiverType = []int{999} // неподдерживаемый тип
-
-		gift := createTestGift(1, 100)
-		invoice, err := buyer.createInvoice(gift)
-
-		assert.Error(t, err)
-		assert.Nil(t, invoice)
-		assert.Contains(t, err.Error(), "unexpected receiver type")
-	})
-}
-
-func TestGiftBuyerImpl_ValidatePurchase(t *testing.T) {
-	t.Run("валидация покупки с nil API", func(t *testing.T) {
-		buyer, _, _, _, _ := createMockBuyer()
-		buyer.api = nil // API nil для тестирования
-
-		gift := createTestGift(1, 100)
-		result := buyer.validatePurchase(gift)
-
-		// С nil API валидация должна возвращать false
-		assert.False(t, result)
-	})
-}
-
-func TestGiftBuyerImpl_PurchaseGift(t *testing.T) {
-	t.Run("успешная покупка подарка с nil API", func(t *testing.T) {
-		buyer, _, _, _, mockRateLimiter := createMockBuyer()
-		buyer.api = nil // nil API для имитации успешной покупки
-
-		mockRateLimiter.On("Acquire", mock.Anything).Return(nil)
-
-		gift := createTestGift(1, 100)
-		ctx := context.Background()
-
-		err := buyer.purchaseGift(ctx, gift)
-
-		// С nil API покупка должна быть успешной (имитация)
-		assert.NoError(t, err)
-		// Убираем AssertCalled так как с nil API метод может не вызываться
-		// mockRateLimiter.AssertCalled(t, "Acquire", ctx)
-	})
-}
-
-func TestGiftBuyerImpl_GetMostFrequentError(t *testing.T) {
-	t.Run("получение самой частой ошибки", func(t *testing.T) {
-		buyer, _, _, _, _ := createMockBuyer()
-
-		errorCounts := map[string]int64{
-			"error1": 5,
-			"error2": 10,
-			"error3": 3,
-		}
-
-		err := buyer.getMostFrequentError(errorCounts)
-
-		assert.NotNil(t, err)
-		assert.Equal(t, "error2", err.Error())
-	})
-
-	t.Run("пустой список ошибок", func(t *testing.T) {
-		buyer, _, _, _, _ := createMockBuyer()
-
-		errorCounts := map[string]int64{}
-
-		err := buyer.getMostFrequentError(errorCounts)
-
-		assert.Nil(t, err)
-	})
-
-	t.Run("одинаковое количество ошибок", func(t *testing.T) {
-		buyer, _, _, _, _ := createMockBuyer()
-
-		errorCounts := map[string]int64{
-			"error1": 5,
-			"error2": 5,
-		}
-
-		err := buyer.getMostFrequentError(errorCounts)
-
-		assert.NotNil(t, err)
-		// Должна вернуться одна из ошибок
-		assert.True(t, err.Error() == "error1" || err.Error() == "error2")
-	})
-}
-
 func TestGiftBuyerImpl_ConcurrentPurchases(t *testing.T) {
 	t.Run("конкурентные покупки", func(t *testing.T) {
-		buyer, _, mockNotification, _, mockRateLimiter := createMockBuyer()
+		buyer, _, _, _, _, _, mockPurchaseProcessor, mockMonitorProcessor := createMockBuyer()
 
-		mockNotification.On("SetBot").Return(false) // Используем логгер вместо бота
-		mockRateLimiter.On("Acquire", mock.Anything).Return(nil)
+		mockMonitorProcessor.On("MonitorProcess", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+		mockPurchaseProcessor.On("PurchaseGift", mock.Anything, mock.Anything).Return(nil)
 
 		// Создаем много подарков для тестирования конкурентности
 		gifts := make(map[*tg.StarGift]int64)
@@ -465,18 +333,17 @@ func TestGiftBuyerImpl_ConcurrentPurchases(t *testing.T) {
 		// Даем время для завершения асинхронных операций
 		time.Sleep(100 * time.Millisecond)
 
-		mockNotification.AssertCalled(t, "SetBot")
+		mockMonitorProcessor.AssertCalled(t, "MonitorProcess", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	})
 }
 
 func TestGiftBuyerImpl_MaxBuyCountLimit(t *testing.T) {
 	t.Run("ограничение максимального количества покупок", func(t *testing.T) {
-		buyer, _, mockNotification, _, mockRateLimiter := createMockBuyer()
-		buyer.counter = newAtomicCounter(2) // Ограничиваем до 2 покупок
+		buyer, _, _, _, _, _, mockPurchaseProcessor, mockMonitorProcessor := createMockBuyer()
+		buyer.counter = atomicCounter.NewAtomicCounter(2) // Ограничиваем до 2 покупок
 
-		mockNotification.On("SetBot").Return(true)
-		mockNotification.On("SendBuyStatus", mock.Anything, mock.AnythingOfType("string"), mock.Anything).Return(nil)
-		mockRateLimiter.On("Acquire", mock.Anything).Return(nil)
+		mockMonitorProcessor.On("MonitorProcess", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+		mockPurchaseProcessor.On("PurchaseGift", mock.Anything, mock.Anything).Return(nil)
 
 		// Пытаемся купить больше чем лимит
 		gifts := map[*tg.StarGift]int64{
@@ -507,6 +374,6 @@ func TestGiftBuyerImpl_MaxBuyCountLimit(t *testing.T) {
 		// Проверяем что счетчик не превысил лимит
 		assert.True(t, buyer.counter.Get() <= buyer.counter.GetMax())
 
-		mockNotification.AssertCalled(t, "SendBuyStatus", mock.Anything, mock.AnythingOfType("string"), mock.Anything)
+		mockMonitorProcessor.AssertCalled(t, "MonitorProcess", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	})
 }

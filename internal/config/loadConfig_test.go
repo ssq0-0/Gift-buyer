@@ -274,7 +274,11 @@ func TestLoadConfig_ZeroValues(t *testing.T) {
 }
 
 func TestLoadConfig_MissingEnvVars(t *testing.T) {
-	// Don't set any environment variables to test the error case
+	// Очищаем переменные среды для теста ошибки
+	t.Setenv("TG_APP_ID", "")
+	t.Setenv("TG_API_HASH", "")
+	t.Setenv("TG_PHONE", "")
+
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "config.json")
 

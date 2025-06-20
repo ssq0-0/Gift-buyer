@@ -2,26 +2,47 @@
     "logger_level": "debug",
     "soft_config": {
         "tg_settings": {
-        "app_id": 1234567890,
-        "api_hash": "qwertyuiop[]asdfghjkl;'zxcvbnm,./",
-        "phone": "+71234567890",
-        "password": ""
+            "app_id": 1234567890,
+            "api_hash": "qwertyuiop[]asdfghjkl;'zxcvbnm,./",
+            "phone": "+71234567890",
+            "password": "",
+            "tg_bot_key": "",
+            "notification_chat_id": 1234567890,
+            "device_model": "MacBook Pro M1 Pro",
+            "system_version": "macOS 15.3.1",
+            "app_version": "11.9 (272031) APP_STORE",
+            "system_lang_code": "en",
+            "lang_code": "en",
+            "lang_pack": "en"
         },
-    "criterias": [
-        {
-            "min_price": 10,
-            "max_price": 100,
-            "total_supply": 100000000,
-            "count": 10
-        }
-    ],
-        "total_star_cap":1000000000000,
+        "criterias": [
+            {
+                "min_price": 10,
+                "max_price": 100,
+                "total_supply": 100000000,
+                "count": 10
+            },
+            {
+                "min_price": 500,
+                "max_price": 1000,
+                "total_supply": 50000,
+                "count": 5
+            }
+        ],
+        "total_star_cap": 1000000000000,
         "receiver": {
-            "type": 0,
-            "receiver_id": 1234567890
+            "type": [0, 1, 2],
+            "user_receiver_id": [1234567890, 9876543210],
+            "channel_receiver_id": [-1001234567890]
         },
         "ticker": 2.0,
+        "retry_count": 3,
+        "retry_delay": 0.5,
         "test_mode": false,
-        "max_buy_count": 100
+        "max_buy_count": 100,
+        "limited_status": true,
+        "concurrency_gift_count": 10,
+        "concurrent_operations": 300,
+        "rpc_rate_limit": 50
     }
 }

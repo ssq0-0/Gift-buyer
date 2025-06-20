@@ -27,7 +27,6 @@ func NewAccountManager(api *tg.Client, userIDs, channelIDs []int, userCache gift
 }
 
 func (am *AccountManager) SetIds(ctx context.Context) error {
-	logger.GlobalLogger.Info("Starting to load users and channels into cache")
 
 	if len(am.userIDs) > 0 {
 		if err := am.loadUsersToCache(ctx); err != nil {
@@ -41,13 +40,10 @@ func (am *AccountManager) SetIds(ctx context.Context) error {
 		}
 	}
 
-	logger.GlobalLogger.Info("Successfully loaded all users and channels into cache")
 	return nil
 }
 
 func (am *AccountManager) loadUsersToCache(ctx context.Context) error {
-	logger.GlobalLogger.Debugf("Loading users to cache, target user IDs: %v", am.userIDs)
-
 	contacts, err := am.api.ContactsGetContacts(ctx, 0)
 	if err != nil {
 		return errors.Wrap(err, "failed to get contacts")
@@ -55,7 +51,6 @@ func (am *AccountManager) loadUsersToCache(ctx context.Context) error {
 
 	switch v := contacts.(type) {
 	case *tg.ContactsContacts:
-		logger.GlobalLogger.Debugf("Found %d contacts, caching all users", len(v.Users))
 
 		cachedCount := 0
 		targetUserMap := make(map[int]bool)
@@ -72,12 +67,7 @@ func (am *AccountManager) loadUsersToCache(ctx context.Context) error {
 			am.userCache.SetUser(u)
 			cachedCount++
 
-			if targetUserMap[int(u.ID)] {
-				logger.GlobalLogger.Debugf("Target user %d found and cached", u.ID)
-			}
 		}
-
-		logger.GlobalLogger.Infof("Cached %d users from contacts", cachedCount)
 
 		notFoundUsers := []int{}
 		for _, userID := range am.userIDs {
@@ -88,7 +78,6 @@ func (am *AccountManager) loadUsersToCache(ctx context.Context) error {
 
 		if len(notFoundUsers) > 0 {
 			logger.GlobalLogger.Warnf("Target users not found in contacts: %v", notFoundUsers)
-			logger.GlobalLogger.Warn("These users need to be added to contacts or started a conversation with")
 		}
 
 	default:
@@ -99,7 +88,6 @@ func (am *AccountManager) loadUsersToCache(ctx context.Context) error {
 }
 
 func (am *AccountManager) loadChannelsToCache(ctx context.Context) error {
-	logger.GlobalLogger.Debugf("Loading channels to cache, target channel IDs: %v", am.channelIDs)
 
 	cachedCount := 0
 	notFoundChannels := []int{}
@@ -107,21 +95,16 @@ func (am *AccountManager) loadChannelsToCache(ctx context.Context) error {
 	for _, channelID := range am.channelIDs {
 		channel, err := am.loadSingleChannel(ctx, channelID)
 		if err != nil {
-			logger.GlobalLogger.Errorf("Failed to load channel %d: %v", channelID, err)
 			notFoundChannels = append(notFoundChannels, channelID)
 			continue
 		}
 
 		am.userCache.SetChannel(channel)
 		cachedCount++
-		logger.GlobalLogger.Debugf("Channel %d cached successfully", channelID)
 	}
-
-	logger.GlobalLogger.Infof("Cached %d channels", cachedCount)
 
 	if len(notFoundChannels) > 0 {
 		logger.GlobalLogger.Warnf("Channels not found or inaccessible: %v", notFoundChannels)
-		logger.GlobalLogger.Warn("These channels need to be joined or made accessible")
 	}
 
 	return nil
@@ -146,12 +129,8 @@ func (am *AccountManager) loadSingleChannel(ctx context.Context, channelID int) 
 
 	for _, chat := range channels.GetChats() {
 		if channel, ok := chat.(*tg.Channel); ok {
-			logger.GlobalLogger.Debugf("Channel found: real ID=%d, config ID=%d, Title=%s, AccessHash=%d", channel.ID, channelID, channel.Title, channel.AccessHash)
-			// Создаем копию канала с исходным ID, но сохраняем оригинальный AccessHash
 			channelCopy := *channel
-			channelCopy.ID = int64(channelID) // Используем исходный ID из конфигурации
-			// AccessHash остается оригинальным - это критически важно для API
-			logger.GlobalLogger.Debugf("Channel copy: ID=%d, AccessHash=%d", channelCopy.ID, channelCopy.AccessHash)
+			channelCopy.ID = int64(channelID)
 			return &channelCopy, nil
 		}
 	}

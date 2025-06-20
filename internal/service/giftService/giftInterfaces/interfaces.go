@@ -5,6 +5,7 @@ package giftInterfaces
 
 import (
 	"context"
+	"gift-buyer/internal/service/giftService/giftTypes"
 
 	"github.com/gotd/td/tg"
 )
@@ -207,4 +208,87 @@ type RateLimiter interface {
 
 type AccountManager interface {
 	SetIds(ctx context.Context) error
+}
+
+// InvoiceCreator defines the interface for creating invoices for gift purchases.
+// It provides methods to generate appropriate invoices based on the receiver type
+// and include necessary peer information and gift details.
+type InvoiceCreator interface {
+	// CreateInvoice creates a Telegram invoice for the specified gift.
+	// It configures the invoice based on the receiver type (self, user, or channel)
+	// and includes appropriate peer information and gift details.
+	//
+	// Parameters:
+	//   - gift: the star gift to create an invoice for
+	//
+	CreateInvoice(gift *tg.StarGift) (*tg.InputInvoiceStarGift, error)
+}
+
+// PaymentProcessor defines the interface for processing purchases.
+// It provides methods to create payment forms and validate purchases.
+type PaymentProcessor interface {
+	// CreatePaymentForm creates a payment form for the specified gift.
+	// It generates the appropriate payment form based on the gift type and includes necessary details.
+	//
+	// Parameters:
+	//   - ctx: context for request cancellation and timeout control
+	//   - gift: the star gift to create a payment form for
+	//
+	// Returns:
+	//   - tg.PaymentsPaymentFormClass: the payment form object
+	//   - *tg.InputInvoiceStarGift: the invoice object
+	//   - error: payment form creation error or API communication failure
+	CreatePaymentForm(ctx context.Context, gift *tg.StarGift) (tg.PaymentsPaymentFormClass, *tg.InputInvoiceStarGift, error)
+}
+
+// PurchaseProcessor defines the interface for processing purchases.
+// It provides methods to purchase gifts and handle different payment form types.
+type PurchaseProcessor interface {
+	// PurchaseGift executes the actual gift purchase through Telegram's payment API.
+	// It creates an invoice, retrieves the payment form, and processes the star payment.
+	//
+	// Parameters:
+	//   - ctx: context for request cancellation and timeout control
+	//   - gift: the star gift to purchase
+	//
+	// Returns:
+	//   - error: payment processing error or API communication failure
+	PurchaseGift(ctx context.Context, gift *tg.StarGift) error
+}
+
+// MonitorProcessor defines the interface for monitoring the purchase process.
+// It provides methods to monitor the purchase process and send notifications.
+type MonitorProcessor interface {
+	// MonitorProcess monitors the purchase process and sends notifications.
+	// It receives results from the purchase process and updates the summaries.
+	//
+	// Parameters:
+	//   - ctx: context for request cancellation and timeout control
+	//   - resultsCh: channel to receive purchase results
+	//   - doneChan: channel to signal completion
+	//   - gifts: map of gifts to their purchase quantities
+	MonitorProcess(ctx context.Context, resultsCh chan giftTypes.GiftResult, doneChan chan struct{}, gifts map[*tg.StarGift]int64)
+}
+
+// Counter defines the interface for managing a counter with atomic operations.
+// It provides methods to increment, decrement, and retrieve the current count.
+type Counter interface {
+	// TryIncrement attempts to increment the counter by one.
+	// It returns true if the increment was successful, false if the maximum count has been reached.
+	TryIncrement() bool
+
+	// Decrement decrements the counter by one.
+	Decrement()
+
+	// Get returns the current count value.
+	//
+	// Returns:
+	//   - int64: current count value
+	Get() int64
+
+	// GetMax returns the maximum allowed count value.
+	//
+	// Returns:
+	//   - int64: maximum count limit
+	GetMax() int64
 }

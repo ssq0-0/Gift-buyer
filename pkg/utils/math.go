@@ -1,4 +1,4 @@
-package giftBuyer
+package utils
 
 import (
 	"crypto/rand"
@@ -19,7 +19,7 @@ func cryptoSeed() int64 {
 var fastRand = mathRand.New(mathRand.NewSource(cryptoSeed()))
 
 // selectRandomElementFast - максимально быстрый выбор случайного элемента
-func selectRandomElementFast[T any](slice []T) T {
+func SelectRandomElementFast[T any](slice []T) T {
 	if len(slice) == 0 {
 		var zero T
 		return zero

@@ -1,4 +1,4 @@
-package giftBuyer
+package atomicCounter
 
 import (
 	"sync"
@@ -10,7 +10,7 @@ import (
 func TestNewAtomicCounter(t *testing.T) {
 	t.Run("создание нового счетчика", func(t *testing.T) {
 		max := int64(100)
-		counter := newAtomicCounter(max)
+		counter := NewAtomicCounter(max)
 
 		assert.NotNil(t, counter)
 		assert.Equal(t, int64(0), counter.Get())
@@ -18,7 +18,7 @@ func TestNewAtomicCounter(t *testing.T) {
 	})
 
 	t.Run("создание счетчика с нулевым максимумом", func(t *testing.T) {
-		counter := newAtomicCounter(0)
+		counter := NewAtomicCounter(0)
 
 		assert.NotNil(t, counter)
 		assert.Equal(t, int64(0), counter.Get())
@@ -26,7 +26,7 @@ func TestNewAtomicCounter(t *testing.T) {
 	})
 
 	t.Run("создание счетчика с отрицательным максимумом", func(t *testing.T) {
-		counter := newAtomicCounter(-5)
+		counter := NewAtomicCounter(-5)
 
 		assert.NotNil(t, counter)
 		assert.Equal(t, int64(0), counter.Get())
@@ -36,7 +36,7 @@ func TestNewAtomicCounter(t *testing.T) {
 
 func TestAtomicCounter_TryIncrement(t *testing.T) {
 	t.Run("успешное увеличение счетчика", func(t *testing.T) {
-		counter := newAtomicCounter(5)
+		counter := NewAtomicCounter(5)
 
 		// Первое увеличение должно быть успешным
 		result := counter.TryIncrement()
@@ -50,7 +50,7 @@ func TestAtomicCounter_TryIncrement(t *testing.T) {
 	})
 
 	t.Run("достижение максимального значения", func(t *testing.T) {
-		counter := newAtomicCounter(2)
+		counter := NewAtomicCounter(2)
 
 		// Увеличиваем до максимума
 		assert.True(t, counter.TryIncrement())
@@ -64,7 +64,7 @@ func TestAtomicCounter_TryIncrement(t *testing.T) {
 	})
 
 	t.Run("счетчик с максимумом 0", func(t *testing.T) {
-		counter := newAtomicCounter(0)
+		counter := NewAtomicCounter(0)
 
 		// Любая попытка увеличения должна провалиться
 		result := counter.TryIncrement()
@@ -73,7 +73,7 @@ func TestAtomicCounter_TryIncrement(t *testing.T) {
 	})
 
 	t.Run("счетчик с отрицательным максимумом", func(t *testing.T) {
-		counter := newAtomicCounter(-1)
+		counter := NewAtomicCounter(-1)
 
 		// Любая попытка увеличения должна провалиться
 		result := counter.TryIncrement()
@@ -84,7 +84,7 @@ func TestAtomicCounter_TryIncrement(t *testing.T) {
 
 func TestAtomicCounter_Decrement(t *testing.T) {
 	t.Run("уменьшение счетчика", func(t *testing.T) {
-		counter := newAtomicCounter(10)
+		counter := NewAtomicCounter(10)
 
 		// Увеличиваем счетчик
 		counter.TryIncrement()
@@ -100,7 +100,7 @@ func TestAtomicCounter_Decrement(t *testing.T) {
 	})
 
 	t.Run("уменьшение ниже нуля", func(t *testing.T) {
-		counter := newAtomicCounter(10)
+		counter := NewAtomicCounter(10)
 
 		// Уменьшаем счетчик ниже нуля
 		counter.Decrement()
@@ -114,7 +114,7 @@ func TestAtomicCounter_Decrement(t *testing.T) {
 func TestAtomicCounter_ConcurrentAccess(t *testing.T) {
 	t.Run("конкурентное увеличение счетчика", func(t *testing.T) {
 		max := int64(1000)
-		counter := newAtomicCounter(max)
+		counter := NewAtomicCounter(max)
 		numGoroutines := 100
 		incrementsPerGoroutine := 10
 
@@ -147,7 +147,7 @@ func TestAtomicCounter_ConcurrentAccess(t *testing.T) {
 	})
 
 	t.Run("конкурентное увеличение и уменьшение", func(t *testing.T) {
-		counter := newAtomicCounter(100)
+		counter := NewAtomicCounter(100)
 		numGoroutines := 50
 
 		var wg sync.WaitGroup
@@ -184,7 +184,7 @@ func TestAtomicCounter_ConcurrentAccess(t *testing.T) {
 
 	t.Run("конкурентное достижение лимита", func(t *testing.T) {
 		max := int64(10)
-		counter := newAtomicCounter(max)
+		counter := NewAtomicCounter(max)
 		numGoroutines := 100
 
 		var wg sync.WaitGroup
@@ -214,7 +214,7 @@ func TestAtomicCounter_ConcurrentAccess(t *testing.T) {
 func TestAtomicCounter_EdgeCases(t *testing.T) {
 	t.Run("большие значения", func(t *testing.T) {
 		max := int64(9223372036854775807) // максимальное значение int64
-		counter := newAtomicCounter(max)
+		counter := NewAtomicCounter(max)
 
 		assert.Equal(t, int64(0), counter.Get())
 		assert.Equal(t, max, counter.GetMax())
@@ -227,7 +227,7 @@ func TestAtomicCounter_EdgeCases(t *testing.T) {
 
 	t.Run("минимальные значения", func(t *testing.T) {
 		max := int64(-9223372036854775808) // минимальное значение int64
-		counter := newAtomicCounter(max)
+		counter := NewAtomicCounter(max)
 
 		assert.Equal(t, int64(0), counter.Get())
 		assert.Equal(t, max, counter.GetMax())
@@ -241,7 +241,7 @@ func TestAtomicCounter_EdgeCases(t *testing.T) {
 
 func TestAtomicCounter_Get(t *testing.T) {
 	t.Run("получение текущего значения", func(t *testing.T) {
-		counter := newAtomicCounter(10)
+		counter := NewAtomicCounter(10)
 
 		assert.Equal(t, int64(0), counter.Get())
 
@@ -262,14 +262,14 @@ func TestAtomicCounter_GetMax(t *testing.T) {
 		testCases := []int64{0, 1, 10, 100, 1000, -1, -100}
 
 		for _, max := range testCases {
-			counter := newAtomicCounter(max)
+			counter := NewAtomicCounter(max)
 			assert.Equal(t, max, counter.GetMax())
 		}
 	})
 }
 
 func BenchmarkAtomicCounter_TryIncrement(b *testing.B) {
-	counter := newAtomicCounter(int64(b.N))
+	counter := NewAtomicCounter(int64(b.N))
 
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
@@ -280,7 +280,7 @@ func BenchmarkAtomicCounter_TryIncrement(b *testing.B) {
 }
 
 func BenchmarkAtomicCounter_Decrement(b *testing.B) {
-	counter := newAtomicCounter(1000000)
+	counter := NewAtomicCounter(1000000)
 
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
@@ -291,7 +291,7 @@ func BenchmarkAtomicCounter_Decrement(b *testing.B) {
 }
 
 func BenchmarkAtomicCounter_Get(b *testing.B) {
-	counter := newAtomicCounter(1000000)
+	counter := NewAtomicCounter(1000000)
 
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {

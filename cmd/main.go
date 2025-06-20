@@ -42,6 +42,7 @@ func main() {
 
 	logLevel := logger.ParseLevel(cfg.LoggerLevel)
 	logger.Init(logLevel)
+	logger.GlobalLogger.Debugf("Config: %+v", cfg)
 
 	service, err := giftService.NewFactory(&cfg.SoftConfig).CreateSystem()
 	if err != nil {

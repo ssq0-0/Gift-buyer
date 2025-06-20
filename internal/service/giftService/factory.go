@@ -10,6 +10,11 @@ import (
 	"gift-buyer/internal/service/giftService/cache/giftCache"
 	"gift-buyer/internal/service/giftService/cache/idCache"
 	"gift-buyer/internal/service/giftService/giftBuyer"
+	"gift-buyer/internal/service/giftService/giftBuyer/atomicCounter"
+	"gift-buyer/internal/service/giftService/giftBuyer/giftBuyerMonitoring"
+	"gift-buyer/internal/service/giftService/giftBuyer/invoiceCreator"
+	"gift-buyer/internal/service/giftService/giftBuyer/paymentProcessor"
+	"gift-buyer/internal/service/giftService/giftBuyer/purchaseProcessor"
 	"gift-buyer/internal/service/giftService/giftManager"
 	"gift-buyer/internal/service/giftService/giftMonitor"
 	"gift-buyer/internal/service/giftService/giftNotification"
@@ -104,8 +109,13 @@ func (f *Factory) CreateSystem() (GiftService, error) {
 	notification := giftNotification.NewNotification(botClient, &f.cfg.TgSettings)
 	monitor := giftMonitor.NewGiftMonitor(cache, manager, validator, notification, time.Duration(f.cfg.Ticker*1000)*time.Millisecond)
 	rl := rateLimiter.NewRateLimiter(f.cfg.RPCRateLimit)
+	counter := atomicCounter.NewAtomicCounter(f.cfg.MaxBuyCount)
+	invoiceCreator := invoiceCreator.NewInvoiceCreator(f.cfg.Receiver.UserReceiverID, f.cfg.Receiver.ChannelReceiverID, f.cfg.Receiver.Type, userCache)
+	paymentProcessor := paymentProcessor.NewPaymentProcessor(client.API(), invoiceCreator, rl)
+	purchaseProcessor := purchaseProcessor.NewPurchaseProcessor(client.API(), paymentProcessor)
+	monitorProcessor := giftBuyerMonitoring.NewGiftBuyerMonitoring(client.API(), notification)
 	accountManager := accountManager.NewAccountManager(client.API(), f.cfg.Receiver.UserReceiverID, f.cfg.Receiver.ChannelReceiverID, userCache)
-	buyer := giftBuyer.NewGiftBuyer(client.API(), f.cfg.Receiver.UserReceiverID, f.cfg.Receiver.ChannelReceiverID, f.cfg.Receiver.Type, manager, notification, f.cfg.MaxBuyCount, f.cfg.RetryCount, userCache, f.cfg.ConcurrencyGiftCount, rl, f.cfg.ConcurrentOperations)
+	buyer := giftBuyer.NewGiftBuyer(client.API(), f.cfg.Receiver.UserReceiverID, f.cfg.Receiver.ChannelReceiverID, f.cfg.Receiver.Type, manager, notification, f.cfg.MaxBuyCount, f.cfg.RetryCount, userCache, f.cfg.ConcurrencyGiftCount, rl, f.cfg.ConcurrentOperations, invoiceCreator, purchaseProcessor, monitorProcessor, counter)
 
 	service := NewGiftService(
 		manager,
@@ -231,7 +241,6 @@ func (f *Factory) initClient(client *telegram.Client, ctx context.Context) (*tg.
 			return nil
 		})
 		if err != nil {
-			logger.GlobalLogger.Errorf("Telegram client error: %v", err)
 			errCh <- err
 		}
 	}()
@@ -281,7 +290,6 @@ func (f *Factory) createBotClient(ctx context.Context) (*tg.Client, error) {
 
 	go func() {
 		err := botClient.Run(ctx, func(ctx context.Context) error {
-			// Authenticate as bot using the provided token
 			_, err := botClient.Auth().Bot(ctx, f.cfg.TgSettings.TgBotKey)
 			if err != nil {
 				logger.GlobalLogger.Errorf("Bot authentication failed: %v", err)

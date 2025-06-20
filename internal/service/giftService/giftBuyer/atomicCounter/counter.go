@@ -1,5 +1,5 @@
 // Package giftBuyer provides gift purchasing functionality for the gift buying system.
-package giftBuyer
+package atomicCounter
 
 import (
 	"sync/atomic"
@@ -23,7 +23,7 @@ type atomicCounter struct {
 //
 // Returns:
 //   - *atomicCounter: initialized counter instance
-func newAtomicCounter(max int64) *atomicCounter {
+func NewAtomicCounter(max int64) *atomicCounter {
 	return &atomicCounter{
 		count: 0,
 		max:   max,

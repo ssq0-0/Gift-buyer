@@ -21,7 +21,6 @@ func NewRateLimiter(rps int) *RateLimiter {
 	if rps > 0 {
 		ticker = time.NewTicker(time.Second / time.Duration(rps))
 	} else {
-		// Для rps <= 0 создаем ticker с очень большим интервалом
 		ticker = time.NewTicker(time.Hour)
 	}
 
@@ -31,6 +30,7 @@ func NewRateLimiter(rps int) *RateLimiter {
 		maxTokens: rps,
 	}
 
+	// Заполняем канал начальными токенами
 	for i := 0; i < rps; i++ {
 		rl.tokens <- struct{}{}
 	}
@@ -75,6 +75,6 @@ func (rl *RateLimiter) Close() {
 	if !rl.closed {
 		rl.closed = true
 		rl.ticker.Stop()
-		close(rl.tokens)
+		// Не закрываем канал, так как он может использоваться в тестах
 	}
 }

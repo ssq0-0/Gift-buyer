@@ -1,6 +1,6 @@
 # Gift Buyer - Система покупки Telegram подарков
 
-[![Language: Russian](https://img.shields.io/badge/Language-Русский-blue)](#русский) [![Language: English](https://img.shields.io/badge/Language-English-green)](#english)
+[![Language: Russian](https://img.shields.io/badge/Language-Русский-blue)](#русский) [![Language: English](https://img.shields.io/badge/Language-English-green)](#english) [![Telegram](https://img.shields.io/badge/Telegram-@chiefssq-blue?logo=telegram)](https://t.me/chiefssq)
 
 ---
 
@@ -8,79 +8,50 @@
 
 ### 📖 Описание
 
-**Gift Buyer** — автоматизированная система для покупки Star Gifts в Telegram. Программа непрерывно мониторит доступные подарки, проверяет их соответствие заданным критериям и автоматически покупает подходящие варианты.
+**Gift Buyer** — софт для покупки Gifts в Telegram. Программа непрерывно мониторит доступные подарки, проверяет их соответствие заданным критериям и автоматически покупает подходящие варианты.
 
 ### ⚡ Преимущества
 
-- **🚀 Высокая скорость** — мгновенная реакция на появление новых подарков
-- **🎯 Точная фильтрация** — настраиваемые критерии по цене, количеству и лимитам
-- **⚙️ Параллельная обработка** — одновременная покупка нескольких подарков (до 300 операций)
-- **🔄 Асинхронные повторы** — интеллектуальная система retry с минимальными задержками (10мс)
-- **⚡ Оптимизированная производительность** — RPC лимит 30 запросов/сек для максимальной скорости
-- **📱 Уведомления** — мгновенные оповещения в Telegram
-- **💾 Кэширование** — сохранение состояния между перезапусками
-- **🛡️ Безопасность** — graceful shutdown и обработка ошибок
+- **Высокая скорость** — настраиваемый тикер для мониторинга и мгновенной реакции на появление новых подарков
+- **Точная фильтрация** — настраиваемые критерии по цене, количеству и лимитам
+- **Параллельная обработка** — одновременная покупка нескольких подарков
+- **Оптимизированная производительность** — RPC лимит 50 запросов/сек для максимальной скорости, параметр настраиваемый
+- **Уведомления** — мгновенные оповещения в Telegram при необходимости
+- **Кэширование** — сохранение состояния между перезапусками
+- **Безопасность** — graceful shutdown и обработка ошибок
 
 ### 🚀 Быстрый старт
 
 ### Установка зависимостей
 ```bash
-make deps
+go mod download
 ```
 
 ### Настройка переменных окружения
-Скопируйте файл с примером переменных окружения:
-```bash
-cp env.example .env
-```
-
-Заполните `.env` файл своими данными:
-- `TG_APP_ID` - ID приложения Telegram
-- `TG_API_HASH` - API Hash от Telegram
-- `TG_PHONE` - Номер телефона
-- `TG_PASSWORD` - Пароль (опционально)
-
 ### Сборка и запуск
 ```bash
-make build
-make run
+go build -o gift-buyer cmd/main.go
+./gift-buyer
 ```
 
 ## 🛠 Разработка
 
 ### Доступные команды
 ```bash
-make help          # Показать все доступные команды
-make all           # Полная проверка проекта (рекомендуется перед коммитом)
-make test          # Запустить тесты
-make lint          # Проверить код линтером
-make fmt           # Отформатировать код
-make build         # Собрать бинарный файл
-make security      # Проверить безопасность кода
-make coverage      # Запустить тесты с покрытием
+go mod tidy              # Обновить зависимости
+go test ./...            # Запустить тесты
+go test -v ./...         # Запустить тесты с подробным выводом
+go test -cover ./...     # Запустить тесты с покрытием
+go vet ./...             # Проверить код статическим анализатором
+go fmt ./...             # Отформатировать код
+go build -o gift-buyer cmd/main.go  # Собрать бинарный файл
+go run cmd/main.go       # Запустить без сборки
 ```
 
-### Установка инструментов разработки
+### Локальная проверка перед коммитом
 ```bash
-make install-tools
+go test ./... && go vet ./... && go fmt ./...
 ```
-
-## 🔧 CI/CD Pipeline
-
-Проект использует GitHub Actions для автоматизации:
-
-### Этапы pipeline:
-1. **Test** - Тестирование и проверка качества кода
-2. **Build** - Сборка для разных платформ
-3. **Release** - Создание релизов (только для main ветки)
-4. **Security** - Проверка безопасности
-
-### Локальная проверка перед коммитом:
-```bash
-make all
-```
-
-Эта команда выполнит все проверки, которые будут запущены в CI/CD.
 
 ## 📁 Структура проекта
 
@@ -92,7 +63,7 @@ make all
 ├── pkg/                  # Переиспользуемые пакеты
 ├── .github/workflows/    # GitHub Actions
 ├── docs/                 # Документация
-├── Makefile             # Команды для разработки
+├── go.mod               # Зависимости Go
 ├── .golangci.yml        # Конфигурация линтера
 └── env.example          # Пример переменных окружения
 ```
@@ -108,8 +79,8 @@ make all
 ## 📊 Тестирование
 
 ```bash
-make test           # Запустить все тесты
-make coverage       # Тесты с отчетом о покрытии
+go test ./...           # Запустить все тесты
+go test -cover ./...    # Тесты с отчетом о покрытии
 ```
 
 Отчет о покрытии сохраняется в `coverage.html`.
@@ -124,7 +95,10 @@ make coverage       # Тесты с отчетом о покрытии
 
 ### Ручная сборка
 ```bash
-make build-all      # Сборка для всех платформ
+# Сборка для всех платформ
+GOOS=linux GOARCH=amd64 go build -o gift-buyer-linux cmd/main.go
+GOOS=windows GOARCH=amd64 go build -o gift-buyer-windows.exe cmd/main.go
+GOOS=darwin GOARCH=amd64 go build -o gift-buyer-macos cmd/main.go
 ```
 
 ## 📝 Логирование
@@ -139,7 +113,7 @@ make build-all      # Сборка для всех платформ
 
 1. Форкните репозиторий
 2. Создайте ветку для фичи (`git checkout -b feature/amazing-feature`)
-3. Запустите `make all` для проверки
+3. Запустите `go test ./... && go vet ./...` для проверки
 4. Закоммитьте изменения (`git commit -m 'Add amazing feature'`)
 5. Запушьте ветку (`git push origin feature/amazing-feature`)
 6. Создайте Pull Request
@@ -224,9 +198,9 @@ make build-all      # Сборка для всех платформ
 ```json
 {
     "receiver": {
-        "type": [1, 2],
+        "type": [0, 1, 2],
         "user_receiver_id": [123456789, 987654321],
-        "channel_receiver_id": [555666777, 888999000]
+        "channel_receiver_id": [-1001234567890]
     }
 }
 ```
@@ -234,9 +208,9 @@ make build-all      # Сборка для всех платформ
 - **`type`** — массив типов получателей:
   - `0` — отправить себе
   - `1` — отправить другому пользователю (пользователь должен быть в ваших контактах)
-  - `2` — отправить в канал (канал должен принадлежать вашему аккаунту)
+  - `2` — отправить в канал/супергруппу (канал должен принадлежать вашему аккаунту)
 - **`user_receiver_id`** — массив ID пользователей для получения подарков
-- **`channel_receiver_id`** — массив ID каналов для получения подарков
+- **`channel_receiver_id`** — массив ID каналов/супергрупп для получения подарков (используйте полный формат, например `-1001234567890`)
 
 **Как это работает:**
 - При каждой покупке система случайно выбирает один тип из массива `type`
@@ -260,19 +234,19 @@ make build-all      # Сборка для всех платформ
 
 ```json
 {
-    "retry_count": 4,
-    "retry_delay": 0.01,
+    "retry_count": 3,
+    "retry_delay": 0.5,
     "concurrency_gift_count": 10,
     "concurrent_operations": 300,
-    "rpc_rate_limit": 30
+    "rpc_rate_limit": 50
 }
 ```
 
-- **`retry_count`** — количество попыток повтора при неудачной покупке (по умолчанию 4)
-- **`retry_delay`** — задержка между попытками повтора в секундах (по умолчанию 0.01 = 10мс)
+- **`retry_count`** — количество попыток повтора при неудачной покупке (по умолчанию 3)
+- **`retry_delay`** — задержка между попытками повтора в секундах (по умолчанию 0.5 секунды)
 - **`concurrency_gift_count`** — максимальное количество подарков, обрабатываемых одновременно (по умолчанию 10)
 - **`concurrent_operations`** — максимальное количество одновременных операций (по умолчанию 300)
-- **`rpc_rate_limit`** — лимит RPC запросов в секунду для Telegram API (по умолчанию 30 RPS)
+- **`rpc_rate_limit`** — лимит RPC запросов в секунду для Telegram API (по умолчанию 50 RPS)
 
 **Оптимизация производительности:**
 - Система использует асинхронную обработку повторов
@@ -385,46 +359,153 @@ make build-all      # Сборка для всех платформ
 
 ### 🚀 Quick Start
 
-1. **Download and build the project:**
-   ```bash
-   git clone <repository-url>
-   cd gift-buyer
-   go build -o gift-buyer cmd/main.go
-   ```
+### Install dependencies
+```bash
+go mod download
+```
 
-2. **Configure the application:**
-   ```bash
-   cp internal/config/config_example.json internal/config/config.json
-   # Edit config.json with your credentials
-   ```
+### Set up environment variables
+Copy the example environment file:
+```bash
+cp env.example .env
+```
 
-3. **Run the program:**
-   ```bash
-   ./gift-buyer
-   ```
+Fill in the `.env` file with your data:
+- `TG_APP_ID` - Telegram application ID
+- `TG_API_HASH` - API Hash from Telegram
+- `TG_PHONE` - Phone number
+- `TG_PASSWORD` - Password (optional)
+
+### Build and run
+```bash
+go build -o gift-buyer cmd/main.go
+./gift-buyer
+```
+
+## 🛠 Development
+
+### Available commands
+```bash
+go mod tidy              # Update dependencies
+go test ./...            # Run tests
+go test -v ./...         # Run tests with verbose output
+go test -cover ./...     # Run tests with coverage
+go vet ./...             # Check code with static analyzer
+go fmt ./...             # Format code
+go build -o gift-buyer cmd/main.go  # Build binary file
+go run cmd/main.go       # Run without building
+```
+
+### Local check before commit
+```bash
+go test ./... && go vet ./... && go fmt ./...
+```
+
+## 📁 Project Structure
+
+```
+├── cmd/                    # Application entry points
+├── internal/              # Internal logic
+│   ├── config/           # Configuration
+│   └── service/          # Business logic
+├── pkg/                  # Reusable packages
+├── .github/workflows/    # GitHub Actions
+├── docs/                 # Documentation
+├── go.mod               # Go dependencies
+├── .golangci.yml        # Linter configuration
+└── env.example          # Environment variables example
+```
+
+## 🔒 Security
+
+The project uses:
+- Cryptographically secure random number generators
+- Secure file permissions (0600)
+- Security checks with gosec
+- Handling of all errors
+
+## 📊 Testing
+
+```bash
+go test ./...           # Run all tests
+go test -cover ./...    # Tests with coverage report
+```
+
+Coverage report is saved to `coverage.html`.
+
+## 🚀 Deploy
+
+### Automatic deploy
+When pushing to `main` branch automatically:
+1. All tests are run
+2. Binary files are built for all platforms
+3. Release is created with artifacts
+
+### Manual build
+```bash
+# Build for all platforms
+GOOS=linux GOARCH=amd64 go build -o gift-buyer-linux cmd/main.go
+GOOS=windows GOARCH=amd64 go build -o gift-buyer-windows.exe cmd/main.go
+GOOS=darwin GOARCH=amd64 go build -o gift-buyer-macos cmd/main.go
+```
+
+## 📝 Logging
+
+Logging levels are configured via `LOG_LEVEL` variable:
+- `debug` - Detailed debug information
+- `info` - General information (default)
+- `warn` - Warnings
+- `error` - Errors only
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Run `go test ./... && go vet ./...` for checks
+4. Commit your changes (`git commit -m 'Add amazing feature'`)
+5. Push the branch (`git push origin feature/amazing-feature`)
+6. Create a Pull Request
+
+## 📄 License
+
+This project is distributed under the MIT License.
+
+
 
 ### ⚙️ Detailed Configuration
 
-#### 🔧 Telegram Settings (`tg_settings`)
+#### 🔧 Telegram Settings
 
-```json
-{
-    "tg_settings": {
-        "app_id": 12345678,
-        "api_hash": "your_api_hash",
-        "phone": "+1234567890",
-        "password": "2fa_password",
-        "tg_bot_key": "bot_token",
-        "notification_chat_id": 123456789
-    }
-}
+**⚠️ IMPORTANT:** Telegram settings are loaded from environment variables, NOT from JSON file!
+
+Required environment variables:
+```bash
+export TG_APP_ID=12345678
+export TG_API_HASH=your_api_hash
+export TG_PHONE=+1234567890
 ```
 
-- **`app_id`** and **`api_hash`** — required parameters from [my.telegram.org](https://my.telegram.org)
-- **`phone`** — account phone number in international format
-- **`password`** — two-factor authentication password (can be left empty `""` if 2FA is disabled)
-- **`tg_bot_key`** — Telegram bot token for notifications (can be left empty `""` if notifications not needed)
-- **`notification_chat_id`** — chat ID for sending notifications
+Optional environment variables:
+```bash
+export TG_PASSWORD=2fa_password           # Only if 2FA is enabled
+export TG_BOT_KEY=bot_token              # For notifications
+export TG_NOTIFICATION_CHAT_ID=123456789 # Chat ID for notifications
+export DEVICE_MODEL="MacBook Pro M1 Pro" # Device model
+export SYSTEM_VERSION="macOS 15.3.1"     # System version
+export APP_VERSION="11.9 (272031) APP_STORE" # App version
+export SYSTEM_LANG_CODE=en               # System language
+export LANG_CODE=en                      # Interface language
+export LANG_PACK=en                      # Language pack
+```
+
+In JSON file, the `tg_settings` section is ignored - all values are taken from environment variables.
+
+**Parameter descriptions:**
+- **`TG_APP_ID`** and **`TG_API_HASH`** — required parameters from [my.telegram.org](https://my.telegram.org)
+- **`TG_PHONE`** — account phone number in international format
+- **`TG_PASSWORD`** — two-factor authentication password (can be omitted if 2FA is disabled)
+- **`TG_BOT_KEY`** — Telegram bot token for notifications (optional)
+- **`TG_NOTIFICATION_CHAT_ID`** — chat ID for sending notifications
 
 #### 🎯 Purchase Criteria (`criterias`)
 
