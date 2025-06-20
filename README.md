@@ -370,7 +370,7 @@ GOOS=darwin GOARCH=amd64 go build -o gift-buyer-macos cmd/main.go
 ### 📋 Требования
 
 - Go 1.23.4+
-- Telegram аккаунт с API ключами
+- Telegram аккаунт с API ключами(https://my.telegram.org/apps)
 - Telegram бот для уведомлений (опционально)
 
 ---
