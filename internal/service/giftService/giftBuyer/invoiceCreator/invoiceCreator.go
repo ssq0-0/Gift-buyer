@@ -66,7 +66,7 @@ func (ic *InvoiceCreatorImpl) selfPurchase(gift *tg.StarGift) (*tg.InputInvoiceS
 		GiftID:   gift.ID,
 		HideName: true,
 		Message: tg.TextWithEntities{
-			Text: fmt.Sprintf("By @chiefssq %s_%d_%s", utils.RandString5(10), time.Now().UnixNano(), uuid.New().String()[:6]),
+			Text: fmt.Sprintf("By @cheifssq %s_%d_%s", utils.RandString5(10), time.Now().UnixNano(), uuid.New().String()[:6]),
 		},
 	}
 	return invoice, nil
@@ -83,7 +83,7 @@ func (ic *InvoiceCreatorImpl) userPurchase(gift *tg.StarGift) (*tg.InputInvoiceS
 		GiftID:   gift.ID,
 		HideName: rand.Intn(2) == 0,
 		Message: tg.TextWithEntities{
-			Text: fmt.Sprintf("By @chiefssq %s_%d_%s", utils.RandString5(10), time.Now().UnixNano(), uuid.New().String()[:6]),
+			Text: fmt.Sprintf("By @cheifssq %s_%d_%s", utils.RandString5(10), time.Now().UnixNano(), uuid.New().String()[:6]),
 		},
 	}
 	return invoice, nil
@@ -97,13 +97,13 @@ func (ic *InvoiceCreatorImpl) channelPurchase(gift *tg.StarGift) (*tg.InputInvoi
 
 	invoice := &tg.InputInvoiceStarGift{
 		Peer: &tg.InputPeerChannel{
-			ChannelID:  channelInfo.ID,
+			ChannelID:  ic.convertChannelID(channelInfo.ID),
 			AccessHash: channelInfo.AccessHash,
 		},
 		GiftID:   gift.ID,
 		HideName: true,
 		Message: tg.TextWithEntities{
-			Text: fmt.Sprintf("By @chiefssq %s_%d", utils.RandString5(10), time.Now().UnixNano()),
+			Text: fmt.Sprintf("By @cheifssq %s_%d", utils.RandString5(10), time.Now().UnixNano()),
 		},
 	}
 	return invoice, nil
@@ -152,4 +152,14 @@ func (ic *InvoiceCreatorImpl) getUserInfo(ctx context.Context, userID int64) (*t
 	}
 
 	return nil, errors.New(fmt.Sprintf("user %d not accessible: session hasn't met this user. See logs for solutions.", userID))
+}
+
+func (ic *InvoiceCreatorImpl) convertChannelID(channelID int64) int64 {
+	var realChannelID int64
+	if channelID < -1000000000000 {
+		realChannelID = -channelID - 1000000000000
+	} else {
+		realChannelID = channelID
+	}
+	return realChannelID
 }
