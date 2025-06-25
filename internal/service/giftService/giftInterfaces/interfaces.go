@@ -146,8 +146,30 @@ type NotificationService interface {
 	//   - error: notification sending error or API communication error
 	SendBuyStatus(ctx context.Context, status string, err error) error
 
+	// SendErrorNotification sends a notification about an error.
+	// It reports error conditions to the configured chat.
+	//
+	// Parameters:
+	//   - ctx: context for request cancellation and timeout control
+	//   - err: error to notify about
+	//
+	// Returns:
+	//   - error: notification sending error or API communication error
+	SendErrorNotification(ctx context.Context, err error) error
+
 	// SetBot sets the bot client
 	SetBot() bool
+
+	// SendUpdateNotification sends a notification about an update.
+	// It reports update conditions to the configured chat.
+	//
+	// Parameters:
+	//   - ctx: context for request cancellation and timeout control
+	//   - version: the version to notify about
+	//
+	// Returns:
+	//   - error: notification sending error or API communication error
+	SendUpdateNotification(ctx context.Context, version, message string) error
 }
 
 // UserCache defines the interface for caching user information.

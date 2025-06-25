@@ -198,9 +198,17 @@ func (ns *NotificationServiceImpl) SendBuyStatus(ctx context.Context, status str
 	return ns.sendNotification(ctx, message)
 }
 
+func (ns *NotificationServiceImpl) SendErrorNotification(ctx context.Context, err error) error {
+	return ns.sendNotification(ctx, err.Error())
+}
+
 // SetBot sets the bot client
 func (ns *NotificationServiceImpl) SetBot() bool {
 	return ns.Bot != nil
+}
+
+func (ns *NotificationServiceImpl) SendUpdateNotification(ctx context.Context, version, message string) error {
+	return ns.sendNotification(ctx, fmt.Sprintf("🆕 New version available: %s\n%s", version, message))
 }
 
 // formatNumber formats integers with comma separators for better readability.

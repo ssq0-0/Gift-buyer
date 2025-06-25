@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"gift-buyer/internal/config"
+	"gift-buyer/internal/infrastructure/gitVersion"
 	"gift-buyer/internal/service/giftService/accountManager"
 	"gift-buyer/internal/service/giftService/cache/giftCache"
 	"gift-buyer/internal/service/giftService/cache/idCache"
@@ -116,6 +117,7 @@ func (f *Factory) CreateSystem() (GiftService, error) {
 	monitorProcessor := giftBuyerMonitoring.NewGiftBuyerMonitoring(client.API(), notification)
 	accountManager := accountManager.NewAccountManager(client.API(), f.cfg.Receiver.UserReceiverID, f.cfg.Receiver.ChannelReceiverID, userCache)
 	buyer := giftBuyer.NewGiftBuyer(client.API(), f.cfg.Receiver.UserReceiverID, f.cfg.Receiver.ChannelReceiverID, f.cfg.Receiver.Type, manager, notification, f.cfg.MaxBuyCount, f.cfg.RetryCount, userCache, f.cfg.ConcurrencyGiftCount, rl, f.cfg.ConcurrentOperations, invoiceCreator, purchaseProcessor, monitorProcessor, counter)
+	gitVersion := gitVersion.NewGitVersionController(f.cfg.RepoOwner, f.cfg.RepoName, f.cfg.ApiLink)
 
 	service := NewGiftService(
 		manager,
@@ -128,6 +130,8 @@ func (f *Factory) CreateSystem() (GiftService, error) {
 		cancel,
 		api,
 		accountManager,
+		gitVersion,
+		time.NewTicker(time.Duration(f.cfg.UpdateTicker)*time.Minute),
 	)
 
 	return service, nil

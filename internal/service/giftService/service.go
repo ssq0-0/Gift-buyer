@@ -5,9 +5,12 @@ package giftService
 
 import (
 	"context"
+	"fmt"
+	"gift-buyer/internal/infrastructure/gitVersion/gitInterfaces"
 	"gift-buyer/internal/service/giftService/giftInterfaces"
 	"gift-buyer/pkg/logger"
 	"sync"
+	"time"
 
 	"github.com/gotd/td/tg"
 )
@@ -24,6 +27,9 @@ type GiftService interface {
 
 	// SetIds sets the IDs of the accounts
 	SetIds(ctx context.Context) error
+
+	// CheckForUpdates checks for updates and sends a notification if available
+	CheckForUpdates()
 }
 
 // GiftServiceImpl implements the GiftService interface and orchestrates all gift buying operations.
@@ -62,6 +68,10 @@ type GiftServiceImpl struct {
 
 	// accountManager handles account-related operations
 	accountManager giftInterfaces.AccountManager
+
+	// version is the current version of the service
+	gitVersion   gitInterfaces.GitVersionController
+	updateTicker *time.Ticker
 }
 
 // NewGiftService creates a new GiftService instance with all required dependencies.
@@ -91,6 +101,8 @@ func NewGiftService(
 	cancel context.CancelFunc,
 	api *tg.Client,
 	accountManager giftInterfaces.AccountManager,
+	gitVersion gitInterfaces.GitVersionController,
+	updateTicker *time.Ticker,
 ) GiftService {
 	return &GiftServiceImpl{
 		manager:        manager,
@@ -103,6 +115,8 @@ func NewGiftService(
 		cancel:         cancel,
 		api:            api,
 		accountManager: accountManager,
+		gitVersion:     gitVersion,
+		updateTicker:   updateTicker,
 	}
 }
 
@@ -175,4 +189,47 @@ func (tc *GiftServiceImpl) Stop() {
 
 func (tc *GiftServiceImpl) SetIds(ctx context.Context) error {
 	return tc.accountManager.SetIds(ctx)
+}
+
+func (tc *GiftServiceImpl) CheckForUpdates() {
+	if err := tc.checkNewUpdates(); err != nil {
+		logger.GlobalLogger.Error("Error checking for updates", "error", err)
+	}
+	for {
+		select {
+		case <-tc.ctx.Done():
+			return
+		case <-tc.updateTicker.C:
+			if err := tc.checkNewUpdates(); err != nil {
+				logger.GlobalLogger.Error("Error checking for updates", "error", err)
+			}
+		}
+	}
+}
+
+func (tc *GiftServiceImpl) checkNewUpdates() error {
+	localVersion, err := tc.gitVersion.GetCurrentVersion()
+	if err != nil {
+		logger.GlobalLogger.Error("Error getting current version", "error", err)
+		return err
+	}
+
+	remoteVersion, err := tc.gitVersion.GetLatestVersion()
+	if err != nil {
+		logger.GlobalLogger.Error("Error getting latest version", "error", err)
+		return err
+	}
+
+	ok, err := tc.gitVersion.CompareVersions(localVersion, remoteVersion.TagName)
+	if err != nil {
+		logger.GlobalLogger.Error("Error comparing versions", "error", err)
+		return err
+	}
+
+	if ok {
+		if err := tc.notification.SendUpdateNotification(tc.ctx, remoteVersion.TagName, fmt.Sprintf("%s\n", remoteVersion.Body)); err != nil {
+			logger.GlobalLogger.Error("Error sending update notification", "error", err)
+		}
+	}
+	return nil
 }

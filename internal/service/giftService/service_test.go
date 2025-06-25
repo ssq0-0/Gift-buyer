@@ -3,6 +3,7 @@ package giftService
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -18,9 +19,11 @@ func (m *MockBalanceCache) TrimBalance(deduction int64) {}
 func TestNewGiftService(t *testing.T) {
 	ctx := context.Background()
 	cancel := func() {}
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
 
 	// Create nil dependencies for testing constructor
-	service := NewGiftService(nil, nil, nil, nil, nil, nil, ctx, cancel, nil, nil)
+	service := NewGiftService(nil, nil, nil, nil, nil, nil, ctx, cancel, nil, nil, nil, ticker)
 	assert.NotNil(t, service)
 
 	// Verify it implements the interface
@@ -31,8 +34,10 @@ func TestNewGiftService(t *testing.T) {
 func TestGiftServiceImpl_Structure(t *testing.T) {
 	ctx := context.Background()
 	cancel := func() {}
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
 
-	service := NewGiftService(nil, nil, nil, nil, nil, nil, ctx, cancel, nil, nil)
+	service := NewGiftService(nil, nil, nil, nil, nil, nil, ctx, cancel, nil, nil, nil, ticker)
 	impl, ok := service.(*GiftServiceImpl)
 	assert.True(t, ok)
 	assert.Equal(t, ctx, impl.ctx)
@@ -41,8 +46,10 @@ func TestGiftServiceImpl_Structure(t *testing.T) {
 func TestGiftServiceImpl_StartMethod(t *testing.T) {
 	ctx := context.Background()
 	cancel := func() {}
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
 
-	service := NewGiftService(nil, nil, nil, nil, nil, nil, ctx, cancel, nil, nil)
+	service := NewGiftService(nil, nil, nil, nil, nil, nil, ctx, cancel, nil, nil, nil, ticker)
 
 	// Test that Start method exists and can be called
 	assert.NotPanics(t, func() {
@@ -55,8 +62,10 @@ func TestGiftServiceImpl_StartMethod(t *testing.T) {
 func TestGiftServiceImpl_StopMethod(t *testing.T) {
 	ctx := context.Background()
 	cancel := func() {}
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
 
-	service := NewGiftService(nil, nil, nil, nil, nil, nil, ctx, cancel, nil, nil)
+	service := NewGiftService(nil, nil, nil, nil, nil, nil, ctx, cancel, nil, nil, nil, ticker)
 
 	// Test that Stop method exists and can be called
 	assert.NotPanics(t, func() {
@@ -67,8 +76,10 @@ func TestGiftServiceImpl_StopMethod(t *testing.T) {
 func TestGiftServiceImpl_MethodSignatures(t *testing.T) {
 	ctx := context.Background()
 	cancel := func() {}
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
 
-	service := NewGiftService(nil, nil, nil, nil, nil, nil, ctx, cancel, nil, nil)
+	service := NewGiftService(nil, nil, nil, nil, nil, nil, ctx, cancel, nil, nil, nil, ticker)
 
 	// Verify Start signature
 	start := service.Start
@@ -81,9 +92,11 @@ func TestGiftServiceImpl_MethodSignatures(t *testing.T) {
 
 func TestGiftServiceImpl_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
 	cancel() // Cancel immediately
 
-	service := NewGiftService(nil, nil, nil, nil, nil, nil, ctx, cancel, nil, nil)
+	service := NewGiftService(nil, nil, nil, nil, nil, nil, ctx, cancel, nil, nil, nil, ticker)
 
 	// Test that cancelled context doesn't cause panic
 	assert.NotPanics(t, func() {
@@ -96,8 +109,10 @@ func TestGiftServiceImpl_ContextCancellation(t *testing.T) {
 func TestGiftServiceImpl_TypeAssertions(t *testing.T) {
 	ctx := context.Background()
 	cancel := func() {}
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
 
-	service := NewGiftService(nil, nil, nil, nil, nil, nil, ctx, cancel, nil, nil)
+	service := NewGiftService(nil, nil, nil, nil, nil, nil, ctx, cancel, nil, nil, nil, ticker)
 
 	// Test type assertions
 	impl, ok := service.(*GiftServiceImpl)
@@ -111,8 +126,10 @@ func TestGiftServiceImpl_TypeAssertions(t *testing.T) {
 func TestGiftServiceImpl_InterfaceCompliance(t *testing.T) {
 	ctx := context.Background()
 	cancel := func() {}
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
 
-	service := NewGiftService(nil, nil, nil, nil, nil, nil, ctx, cancel, nil, nil)
+	service := NewGiftService(nil, nil, nil, nil, nil, nil, ctx, cancel, nil, nil, nil, ticker)
 
 	// Verify that the service implements the GiftService interface
 	_, ok := service.(GiftService)

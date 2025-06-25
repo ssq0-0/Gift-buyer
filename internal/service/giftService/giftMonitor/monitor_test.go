@@ -83,14 +83,19 @@ func (m *MockNotificationService) SendBuyStatus(ctx context.Context, status stri
 	return args.Error(0)
 }
 
-func (m *MockNotificationService) SendBulkGiftNotification(ctx context.Context, gifts []*tg.StarGift) error {
-	args := m.Called(ctx, gifts)
+func (m *MockNotificationService) SendErrorNotification(ctx context.Context, err error) error {
+	args := m.Called(ctx, err)
 	return args.Error(0)
 }
 
 func (m *MockNotificationService) SetBot() bool {
 	args := m.Called()
 	return args.Bool(0)
+}
+
+func (m *MockNotificationService) SendUpdateNotification(ctx context.Context, version, message string) error {
+	args := m.Called(ctx, version, message)
+	return args.Error(0)
 }
 
 func TestNewGiftMonitor(t *testing.T) {
@@ -114,13 +119,69 @@ func TestNewGiftMonitor(t *testing.T) {
 	assert.NotNil(t, gm.ticker)
 }
 
-func TestGiftMonitor_Start_NewValidGifts(t *testing.T) {
+func TestGiftMonitor_Start_FirstRun(t *testing.T) {
 	mockCache := new(MockGiftCache)
 	mockManager := new(MockGiftManager)
 	mockValidator := new(MockGiftValidator)
 	mockNotification := new(MockNotificationService)
 
 	monitor := NewGiftMonitor(mockCache, mockManager, mockValidator, mockNotification, time.Millisecond*10)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
+	defer cancel()
+
+	// Create test gifts
+	gift1 := &tg.StarGift{ID: 1, Stars: 100}
+	gift2 := &tg.StarGift{ID: 2, Stars: 200}
+	currentGifts := []*tg.StarGift{gift1, gift2}
+
+	// First run - should return "touch grass" error and continue monitoring
+	mockManager.On("GetAvailableGifts", mock.AnythingOfType("*context.timerCtx")).Return(currentGifts, nil).Times(1)
+	mockCache.On("HasGift", int64(1)).Return(false).Times(1)
+	mockCache.On("HasGift", int64(2)).Return(false).Times(1)
+	mockValidator.On("IsEligible", gift1).Return(int64(10), true).Times(1)
+	mockValidator.On("IsEligible", gift2).Return(int64(20), true).Times(1)
+	mockCache.On("SetGift", int64(1), gift1).Return().Times(1)
+	mockCache.On("SetGift", int64(2), gift2).Return().Times(1)
+	mockNotification.On("SendErrorNotification", mock.Anything, mock.MatchedBy(func(err error) bool {
+		return err.Error() == "touch grass: first run"
+	})).Return(nil).Times(1)
+
+	// Second run - no new gifts since they're in cache
+	mockManager.On("GetAvailableGifts", mock.AnythingOfType("*context.timerCtx")).Return(currentGifts, nil)
+	mockCache.On("HasGift", int64(1)).Return(true)
+	mockCache.On("HasGift", int64(2)).Return(true)
+	mockCache.On("SetGift", int64(1), gift1).Return()
+	mockCache.On("SetGift", int64(2), gift2).Return()
+
+	newGifts, err := monitor.Start(ctx)
+
+	// Should timeout since no new gifts are found after first run
+	assert.Error(t, err)
+	assert.Equal(t, context.DeadlineExceeded, err)
+	assert.Nil(t, newGifts)
+
+	mockCache.AssertExpectations(t)
+	mockManager.AssertExpectations(t)
+	mockValidator.AssertExpectations(t)
+	mockNotification.AssertExpectations(t)
+}
+
+func TestGiftMonitor_Start_SecondRunWithNewGifts(t *testing.T) {
+	mockCache := new(MockGiftCache)
+	mockManager := new(MockGiftManager)
+	mockValidator := new(MockGiftValidator)
+	mockNotification := new(MockNotificationService)
+
+	// Create monitor and skip first run manually
+	gm := &GiftMonitorImpl{
+		cache:        mockCache,
+		manager:      mockManager,
+		validator:    mockValidator,
+		notification: mockNotification,
+		ticker:       time.NewTicker(time.Millisecond * 10),
+		firstRun:     false, // Skip first run
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*50)
 	defer cancel()
 
@@ -129,7 +190,7 @@ func TestGiftMonitor_Start_NewValidGifts(t *testing.T) {
 	gift2 := &tg.StarGift{ID: 2, Stars: 200}
 	currentGifts := []*tg.StarGift{gift1, gift2}
 
-	// Setup mocks for checkForNewGifts
+	// Setup mocks for new gifts
 	mockManager.On("GetAvailableGifts", mock.AnythingOfType("*context.timerCtx")).Return(currentGifts, nil)
 	mockCache.On("HasGift", int64(1)).Return(false)
 	mockCache.On("HasGift", int64(2)).Return(false)
@@ -137,17 +198,15 @@ func TestGiftMonitor_Start_NewValidGifts(t *testing.T) {
 	mockValidator.On("IsEligible", gift2).Return(int64(20), true)
 	mockCache.On("SetGift", int64(1), gift1).Return()
 	mockCache.On("SetGift", int64(2), gift2).Return()
-	mockNotification.On("SetBot").Return(true)
-	mockNotification.On("SendNewGiftNotification", mock.Anything, gift1).Return(nil)
-	mockNotification.On("SendNewGiftNotification", mock.Anything, gift2).Return(nil)
-	mockNotification.On("SendBulkGiftNotification", mock.Anything, []*tg.StarGift{gift1, gift2}).Return(nil)
 
-	newGifts, err := monitor.Start(ctx)
+	newGifts, err := gm.Start(ctx)
 
 	assert.NoError(t, err)
 	assert.Len(t, newGifts, 2)
 	assert.Contains(t, newGifts, gift1)
 	assert.Contains(t, newGifts, gift2)
+	assert.Equal(t, int64(10), newGifts[gift1])
+	assert.Equal(t, int64(20), newGifts[gift2])
 
 	mockCache.AssertExpectations(t)
 	mockManager.AssertExpectations(t)
@@ -181,8 +240,11 @@ func TestGiftMonitor_Start_NoNewGifts(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*50)
 	defer cancel()
 
-	// Setup mocks to return no new gifts
+	// Setup mocks to return no new gifts on first run (triggers SendErrorNotification)
 	mockManager.On("GetAvailableGifts", mock.AnythingOfType("*context.timerCtx")).Return([]*tg.StarGift{}, nil)
+	mockNotification.On("SendErrorNotification", mock.Anything, mock.MatchedBy(func(err error) bool {
+		return err.Error() == "touch grass: first run"
+	})).Return(nil).Times(1)
 
 	// Start monitoring - it should continue until context timeout
 	newGifts, err := monitor.Start(ctx)
@@ -193,6 +255,7 @@ func TestGiftMonitor_Start_NoNewGifts(t *testing.T) {
 
 	mockCache.AssertExpectations(t)
 	mockManager.AssertExpectations(t)
+	mockNotification.AssertExpectations(t)
 }
 
 func TestGiftMonitor_CheckForNewGifts_Success(t *testing.T) {
@@ -299,35 +362,38 @@ func TestGiftMonitor_CheckForNewGifts_ExistingGifts(t *testing.T) {
 	mockValidator.AssertExpectations(t)
 }
 
-func TestGiftMonitor_Start_WithoutBot(t *testing.T) {
+func TestGiftMonitor_CheckForNewGifts_NotEligible(t *testing.T) {
 	mockCache := new(MockGiftCache)
 	mockManager := new(MockGiftManager)
 	mockValidator := new(MockGiftValidator)
 	mockNotification := new(MockNotificationService)
 
-	monitor := NewGiftMonitor(mockCache, mockManager, mockValidator, mockNotification, time.Millisecond*10)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*50)
-	defer cancel()
+	monitor := &GiftMonitorImpl{
+		cache:        mockCache,
+		manager:      mockManager,
+		validator:    mockValidator,
+		notification: mockNotification,
+		ticker:       time.NewTicker(time.Second),
+	}
+
+	ctx := context.Background()
 
 	// Create test gifts
 	gift1 := &tg.StarGift{ID: 1, Stars: 100}
 	currentGifts := []*tg.StarGift{gift1}
 
-	// Setup mocks for checkForNewGifts - notifications are now handled in service
-	mockManager.On("GetAvailableGifts", mock.AnythingOfType("*context.timerCtx")).Return(currentGifts, nil)
+	// Setup mocks - gift is not eligible
+	mockManager.On("GetAvailableGifts", ctx).Return(currentGifts, nil)
 	mockCache.On("HasGift", int64(1)).Return(false)
-	mockValidator.On("IsEligible", gift1).Return(int64(1), true)
+	mockValidator.On("IsEligible", gift1).Return(int64(0), false)
 	mockCache.On("SetGift", int64(1), gift1).Return()
-	// Removed SetBot() call as notifications are now handled in service layer
 
-	newGifts, err := monitor.Start(ctx)
+	newGifts, err := monitor.checkForNewGifts(ctx)
 
 	assert.NoError(t, err)
-	assert.Len(t, newGifts, 1)
-	assert.Contains(t, newGifts, gift1)
+	assert.Empty(t, newGifts) // No eligible gifts
 
 	mockCache.AssertExpectations(t)
 	mockManager.AssertExpectations(t)
 	mockValidator.AssertExpectations(t)
-	// Removed notification assertions as they're no longer called from monitor
 }

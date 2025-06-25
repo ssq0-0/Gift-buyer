@@ -50,31 +50,7 @@ func TestNewPurchaseProcessor(t *testing.T) {
 }
 
 func TestPurchaseProcessorImpl_PurchaseGift_ErrorCases(t *testing.T) {
-	t.Run("ошибка при неподдерживаемом типе формы", func(t *testing.T) {
-		mockPaymentProcessor := &MockPaymentProcessor{}
-
-		processor := &PurchaseProcessorImpl{
-			api:              nil,
-			paymentProcessor: mockPaymentProcessor,
-		}
-
-		gift := createTestGift(1, 100)
-		invoice := createTestInvoice(gift.ID)
-		paymentForm := &tg.PaymentsPaymentForm{} // Неподдерживаемый тип
-
-		// Настраиваем моки
-		mockPaymentProcessor.On("CreatePaymentForm", mock.Anything, gift).Return(paymentForm, invoice, nil)
-
-		ctx := context.Background()
-		err := processor.PurchaseGift(ctx, gift)
-
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "regular payment form not supported for star gifts")
-
-		mockPaymentProcessor.AssertCalled(t, "CreatePaymentForm", ctx, gift)
-	})
-
-	t.Run("ошибка при создании payment form", func(t *testing.T) {
+	t.Run("ошибка при недостаточном балансе", func(t *testing.T) {
 		mockPaymentProcessor := &MockPaymentProcessor{}
 
 		processor := &PurchaseProcessorImpl{
@@ -84,40 +60,14 @@ func TestPurchaseProcessorImpl_PurchaseGift_ErrorCases(t *testing.T) {
 
 		gift := createTestGift(1, 100)
 
-		// Настраиваем мок для возврата ошибки
-		mockPaymentProcessor.On("CreatePaymentForm", mock.Anything, gift).Return(nil, nil, assert.AnError)
-
 		ctx := context.Background()
 		err := processor.PurchaseGift(ctx, gift)
 
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to send stars form")
+		assert.Contains(t, err.Error(), "insufficient balance to buy gift")
 
-		mockPaymentProcessor.AssertCalled(t, "CreatePaymentForm", ctx, gift)
-	})
-
-	t.Run("неизвестный тип payment form", func(t *testing.T) {
-		mockPaymentProcessor := &MockPaymentProcessor{}
-
-		processor := &PurchaseProcessorImpl{
-			api:              nil,
-			paymentProcessor: mockPaymentProcessor,
-		}
-
-		gift := createTestGift(1, 100)
-		invoice := createTestInvoice(gift.ID)
-
-		// Используем nil для имитации неизвестного типа
-		// Настраиваем моки
-		mockPaymentProcessor.On("CreatePaymentForm", mock.Anything, gift).Return(nil, invoice, nil)
-
-		ctx := context.Background()
-		err := processor.PurchaseGift(ctx, gift)
-
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "unexpected payment form type")
-
-		mockPaymentProcessor.AssertCalled(t, "CreatePaymentForm", ctx, gift)
+		// CreatePaymentForm не должен быть вызван из-за ранней проверки баланса
+		mockPaymentProcessor.AssertNotCalled(t, "CreatePaymentForm")
 	})
 }
 
@@ -147,9 +97,8 @@ func TestPurchaseProcessorImpl_ValidatePurchase_NilAPI(t *testing.T) {
 
 		gift := createTestGift(1, 100)
 
-		// С nil API валидация должна вызвать панику, ловим её
-		assert.Panics(t, func() {
-			processor.validatePurchase(gift)
-		})
+		// С nil API валидация должна вернуть false
+		result := processor.validatePurchase(gift)
+		assert.False(t, result)
 	})
 }

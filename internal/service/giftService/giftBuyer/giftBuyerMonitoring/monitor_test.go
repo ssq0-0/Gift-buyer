@@ -27,9 +27,19 @@ func (m *MockNotificationService) SendBuyStatus(ctx context.Context, status stri
 	return args.Error(0)
 }
 
+func (m *MockNotificationService) SendErrorNotification(ctx context.Context, err error) error {
+	args := m.Called(ctx, err)
+	return args.Error(0)
+}
+
 func (m *MockNotificationService) SetBot() bool {
 	args := m.Called()
 	return args.Bool(0)
+}
+
+func (m *MockNotificationService) SendUpdateNotification(ctx context.Context, version, message string) error {
+	args := m.Called(ctx, version, message)
+	return args.Error(0)
 }
 
 func createTestGift(id int64, stars int64) *tg.StarGift {

@@ -107,6 +107,7 @@ func (gm *GiftMonitorImpl) Start(ctx context.Context) (map[*tg.StarGift]int64, e
 		case newGifts := <-resultCh:
 			return newGifts, nil
 		case err := <-errCh:
+			gm.notification.SendErrorNotification(ctx, err)
 			logger.GlobalLogger.Errorf("monitoring error: %v", err)
 			continue
 		}

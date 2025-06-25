@@ -43,6 +43,10 @@
         "limited_status": true,
         "concurrency_gift_count": 10,
         "concurrent_operations": 300,
-        "rpc_rate_limit": 50
+        "rpc_rate_limit": 50,
+        "update_ticker": 60,
+        "repo_owner": "ssq0-0",
+        "repo_name": "Gift-buyer",
+        "api_link": "https://api.github.com"
     }
 }

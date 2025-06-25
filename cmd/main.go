@@ -42,7 +42,6 @@ func main() {
 
 	logLevel := logger.ParseLevel(cfg.LoggerLevel)
 	logger.Init(logLevel)
-	logger.GlobalLogger.Debugf("Config: %+v", cfg)
 
 	service, err := giftService.NewFactory(&cfg.SoftConfig).CreateSystem()
 	if err != nil {
@@ -56,6 +55,11 @@ func main() {
 	go func() {
 		logger.GlobalLogger.Info("Starting gift service...")
 		service.Start()
+	}()
+
+	go func() {
+		logger.GlobalLogger.Info("Starting update checker...")
+		service.CheckForUpdates()
 	}()
 
 	logger.GlobalLogger.Info("Gift buyer service started. Press Ctrl+C to stop.")

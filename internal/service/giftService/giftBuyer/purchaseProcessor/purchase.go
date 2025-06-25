@@ -82,6 +82,10 @@ func (pp *PurchaseProcessorImpl) sendStarsForm(ctx context.Context, invoice *tg.
 // Returns:
 //   - error: validation error if insufficient balance or balance check fails
 func (pp *PurchaseProcessorImpl) validatePurchase(gift *tg.StarGift) bool {
+	if pp.api == nil {
+		return false
+	}
+
 	balance, err := pp.api.PaymentsGetStarsStatus(context.Background(), &tg.InputPeerSelf{})
 	if err != nil {
 		return false

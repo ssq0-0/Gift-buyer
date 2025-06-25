@@ -16,6 +16,18 @@ type AppConfig struct {
 // SoftConfig contains the core operational configuration for the gift buying system.
 // It includes Telegram settings, purchase criteria, and operational limits.
 type SoftConfig struct {
+	// UpdateTicker is the interval for checking for updates
+	UpdateTicker float64 `json:"update_ticker"`
+
+	// RepoOwner is the owner of the repository
+	RepoOwner string `json:"repo_owner"`
+
+	// RepoName is the name of the repository
+	RepoName string `json:"repo_name"`
+
+	// ApiLink is the link to the API
+	ApiLink string `json:"api_link"`
+
 	// TgSettings contains Telegram API and bot configuration
 	TgSettings TgSettings `json:"tg_settings"`
 
