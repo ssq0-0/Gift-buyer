@@ -104,7 +104,7 @@ func (f *Factory) CreateSystem() (GiftService, error) {
 	}
 
 	validator := giftValidator.NewGiftValidator(f.cfg.Criterias, f.cfg.TotalStarCap, f.cfg.TestMode, f.cfg.LimitedStatus)
-	manager := giftManager.NewGiftManager(client.API())
+	manager := giftManager.NewGiftManager(api)
 	cache := giftCache.NewGiftCache()
 	userCache := idCache.NewIDCache()
 	notification := giftNotification.NewNotification(botClient, &f.cfg.TgSettings)
@@ -112,11 +112,11 @@ func (f *Factory) CreateSystem() (GiftService, error) {
 	rl := rateLimiter.NewRateLimiter(f.cfg.RPCRateLimit)
 	counter := atomicCounter.NewAtomicCounter(f.cfg.MaxBuyCount)
 	invoiceCreator := invoiceCreator.NewInvoiceCreator(f.cfg.Receiver.UserReceiverID, f.cfg.Receiver.ChannelReceiverID, f.cfg.Receiver.Type, userCache)
-	paymentProcessor := paymentProcessor.NewPaymentProcessor(client.API(), invoiceCreator, rl)
-	purchaseProcessor := purchaseProcessor.NewPurchaseProcessor(client.API(), paymentProcessor)
-	monitorProcessor := giftBuyerMonitoring.NewGiftBuyerMonitoring(client.API(), notification)
-	accountManager := accountManager.NewAccountManager(client.API(), f.cfg.Receiver.UserReceiverID, f.cfg.Receiver.ChannelReceiverID, userCache)
-	buyer := giftBuyer.NewGiftBuyer(client.API(), f.cfg.Receiver.UserReceiverID, f.cfg.Receiver.ChannelReceiverID, f.cfg.Receiver.Type, manager, notification, f.cfg.MaxBuyCount, f.cfg.RetryCount, userCache, f.cfg.ConcurrencyGiftCount, rl, f.cfg.ConcurrentOperations, invoiceCreator, purchaseProcessor, monitorProcessor, counter)
+	paymentProcessor := paymentProcessor.NewPaymentProcessor(api, invoiceCreator, rl)
+	purchaseProcessor := purchaseProcessor.NewPurchaseProcessor(api, paymentProcessor)
+	monitorProcessor := giftBuyerMonitoring.NewGiftBuyerMonitoring(api, notification)
+	accountManager := accountManager.NewAccountManager(api, f.cfg.Receiver.UserReceiverID, f.cfg.Receiver.ChannelReceiverID, userCache)
+	buyer := giftBuyer.NewGiftBuyer(api, f.cfg.Receiver.UserReceiverID, f.cfg.Receiver.ChannelReceiverID, f.cfg.Receiver.Type, manager, notification, f.cfg.MaxBuyCount, f.cfg.RetryCount, userCache, f.cfg.ConcurrencyGiftCount, rl, f.cfg.ConcurrentOperations, invoiceCreator, purchaseProcessor, monitorProcessor, counter)
 	gitVersion := gitVersion.NewGitVersionController(f.cfg.RepoOwner, f.cfg.RepoName, f.cfg.ApiLink)
 
 	service := NewGiftService(
