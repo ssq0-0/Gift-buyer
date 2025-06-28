@@ -131,7 +131,7 @@ func (f *Factory) CreateSystem() (GiftService, error) {
 		api,
 		accountManager,
 		gitVersion,
-		time.NewTicker(time.Duration(f.cfg.UpdateTicker)*time.Minute),
+		time.NewTicker(time.Duration(f.cfg.UpdateTicker)*time.Second),
 	)
 
 	return service, nil
