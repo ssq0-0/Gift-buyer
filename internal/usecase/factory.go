@@ -70,6 +70,11 @@ func NewFactory(cfg *config.SoftConfig) *Factory {
 func (f *Factory) CreateSystem() (UseCase, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
+	tickerInterval := f.cfg.Ticker
+	if tickerInterval <= 0 {
+		tickerInterval = 2.0
+	}
+
 	sessionManager := sessions.NewSessionManager(&f.cfg.TgSettings)
 	authManager := authService.NewAuthManager(sessionManager, nil, &f.cfg.TgSettings)
 	api, err := authManager.InitClient(ctx)
@@ -78,7 +83,7 @@ func (f *Factory) CreateSystem() (UseCase, error) {
 		return nil, err
 	}
 
-	apiChecker := apiChecker.NewApiChecker(api, time.NewTicker(time.Duration(f.cfg.Ticker*1000)*time.Millisecond))
+	apiChecker := apiChecker.NewApiChecker(api, time.NewTicker(time.Duration(tickerInterval*1000)*time.Millisecond))
 	authManager.SetApiChecker(apiChecker)
 	authManager.RunApiChecker(ctx)
 
@@ -96,7 +101,7 @@ func (f *Factory) CreateSystem() (UseCase, error) {
 	cache := giftCache.NewGiftCache()
 	userCache := idCache.NewIDCache()
 	notification := giftNotification.NewNotification(botClient, &f.cfg.TgSettings)
-	monitor := giftMonitor.NewGiftMonitor(cache, manager, validator, notification, time.Duration(f.cfg.Ticker*1000)*time.Millisecond)
+	monitor := giftMonitor.NewGiftMonitor(cache, manager, validator, notification, time.Duration(tickerInterval*1000)*time.Millisecond)
 	authManager.SetMonitor(monitor)
 	rl := rateLimiter.NewRateLimiter(f.cfg.RPCRateLimit)
 	counter := atomicCounter.NewAtomicCounter(f.cfg.MaxBuyCount)
@@ -107,6 +112,11 @@ func (f *Factory) CreateSystem() (UseCase, error) {
 	accountManager := accountManager.NewAccountManager(api, f.cfg.Receiver.UserReceiverID, f.cfg.Receiver.ChannelReceiverID, userCache)
 	buyer := giftBuyer.NewGiftBuyer(api, f.cfg.Receiver.UserReceiverID, f.cfg.Receiver.ChannelReceiverID, f.cfg.Receiver.Type, manager, notification, f.cfg.MaxBuyCount, f.cfg.RetryCount, userCache, f.cfg.ConcurrencyGiftCount, rl, f.cfg.ConcurrentOperations, invoiceCreator, purchaseProcessor, monitorProcessor, counter)
 	gitVersion := gitVersion.NewGitVersionController(f.cfg.RepoOwner, f.cfg.RepoName, f.cfg.ApiLink)
+
+	updateInterval := f.cfg.UpdateTicker
+	if updateInterval <= 0 {
+		updateInterval = 60
+	}
 
 	service := NewUseCase(
 		manager,
@@ -120,7 +130,7 @@ func (f *Factory) CreateSystem() (UseCase, error) {
 		api,
 		accountManager,
 		gitVersion,
-		time.NewTicker(time.Duration(f.cfg.UpdateTicker)*time.Second),
+		time.NewTicker(time.Duration(updateInterval)*time.Second),
 	)
 
 	return service, nil
