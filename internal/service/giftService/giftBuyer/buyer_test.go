@@ -11,7 +11,6 @@ import (
 	"github.com/gotd/td/tg"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 )
 
 // Mock implementations
@@ -129,7 +128,7 @@ func createTestGift(id int64, stars int64) *tg.StarGift {
 	}
 }
 
-func createMockBuyer() (*GiftBuyerImpl, *MockGiftManager, *MockNotificationService, *MockUserCache, *MockRateLimiter, *MockInvoiceCreator, *MockPurchaseProcessor, *MockMonitorProcessor) {
+func createMockBuyer() (*giftBuyerImpl, *MockGiftManager, *MockNotificationService, *MockUserCache, *MockRateLimiter, *MockInvoiceCreator, *MockPurchaseProcessor, *MockMonitorProcessor) {
 	mockManager := &MockGiftManager{}
 	mockNotification := &MockNotificationService{}
 	mockUserCache := &MockUserCache{}
@@ -138,7 +137,7 @@ func createMockBuyer() (*GiftBuyerImpl, *MockGiftManager, *MockNotificationServi
 	mockPurchaseProcessor := &MockPurchaseProcessor{}
 	mockMonitorProcessor := &MockMonitorProcessor{}
 
-	buyer := &GiftBuyerImpl{
+	buyer := &giftBuyerImpl{
 		manager:              mockManager,
 		idCache:              mockUserCache,
 		notification:         mockNotification,
@@ -191,19 +190,16 @@ func TestNewGiftBuyer(t *testing.T) {
 		)
 
 		assert.NotNil(t, buyer)
-		impl, ok := buyer.(*GiftBuyerImpl)
-		require.True(t, ok)
-
-		assert.Equal(t, []int{123456}, impl.userReceiver)
-		assert.Equal(t, []int{789012}, impl.channelReceiver)
-		assert.Equal(t, []int{0, 1, 2}, impl.receiverType)
-		assert.Equal(t, 3, impl.retryCount)
-		assert.Equal(t, 5, impl.concurrentGifts)
-		assert.Equal(t, 10, impl.concurrentOperations)
-		assert.NotNil(t, impl.counter)
-		assert.NotNil(t, impl.invoiceCreator)
-		assert.NotNil(t, impl.purchaseProcessor)
-		assert.NotNil(t, impl.monitorProcessor)
+		assert.Equal(t, []int{123456}, buyer.userReceiver)
+		assert.Equal(t, []int{789012}, buyer.channelReceiver)
+		assert.Equal(t, []int{0, 1, 2}, buyer.receiverType)
+		assert.Equal(t, 3, buyer.retryCount)
+		assert.Equal(t, 5, buyer.concurrentGifts)
+		assert.Equal(t, 10, buyer.concurrentOperations)
+		assert.NotNil(t, buyer.counter)
+		assert.NotNil(t, buyer.invoiceCreator)
+		assert.NotNil(t, buyer.purchaseProcessor)
+		assert.NotNil(t, buyer.monitorProcessor)
 	})
 }
 

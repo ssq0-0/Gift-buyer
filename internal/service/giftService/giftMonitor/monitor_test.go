@@ -111,13 +111,11 @@ func TestNewGiftMonitor(t *testing.T) {
 	assert.NotNil(t, monitor)
 
 	// Cast to concrete type to verify internal structure
-	gm, ok := monitor.(*giftMonitorImpl)
-	assert.True(t, ok)
-	assert.Equal(t, mockCache, gm.cache)
-	assert.Equal(t, mockManager, gm.manager)
-	assert.Equal(t, mockValidator, gm.validator)
-	assert.Equal(t, mockNotification, gm.notification)
-	assert.NotNil(t, gm.ticker)
+	assert.Equal(t, mockCache, monitor.cache)
+	assert.Equal(t, mockManager, monitor.manager)
+	assert.Equal(t, mockValidator, monitor.validator)
+	assert.Equal(t, mockNotification, monitor.notification)
+	assert.NotNil(t, monitor.ticker)
 }
 
 func TestGiftMonitor_Start_FirstRun(t *testing.T) {

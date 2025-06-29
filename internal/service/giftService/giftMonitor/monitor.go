@@ -61,7 +61,7 @@ func NewGiftMonitor(
 	validator giftInterfaces.GiftValidator,
 	notification giftInterfaces.NotificationService,
 	tickTime time.Duration,
-) giftInterfaces.GiftMonitor {
+) *giftMonitorImpl {
 	return &giftMonitorImpl{
 		cache:        cache,
 		manager:      manager,

@@ -15,17 +15,14 @@ func TestNewGiftManager(t *testing.T) {
 	assert.NotNil(t, manager)
 
 	// Verify it implements the interface
-	_, ok := manager.(*GiftManagerImpl)
-	assert.True(t, ok)
+	assert.NotNil(t, manager)
 }
 
 func TestGiftManagerImpl_Structure(t *testing.T) {
 	var client *tg.Client
 	manager := NewGiftManager(client)
 
-	impl, ok := manager.(*GiftManagerImpl)
-	assert.True(t, ok)
-	assert.Equal(t, client, impl.api)
+	assert.Equal(t, client, manager.api)
 }
 
 func TestGiftManagerImpl_InterfaceCompliance(t *testing.T) {
@@ -64,24 +61,22 @@ func TestGiftManagerImpl_TypeAssertions(t *testing.T) {
 	manager := NewGiftManager(client)
 
 	// Test type assertions
-	impl, ok := manager.(*GiftManagerImpl)
-	assert.True(t, ok)
-	assert.NotNil(t, impl)
+	assert.NotNil(t, manager)
 
 	// Test that api field is accessible
-	assert.Equal(t, client, impl.api)
+	assert.Equal(t, client, manager.api)
 }
 
 func TestGiftManagerImpl_ZeroValues(t *testing.T) {
 	// Test with zero values
-	manager := &GiftManagerImpl{}
+	manager := &giftManagerImpl{}
 	assert.NotNil(t, manager)
 	assert.Nil(t, manager.api)
 }
 
 func TestGiftManagerImpl_FieldAccess(t *testing.T) {
 	var client *tg.Client
-	impl := &GiftManagerImpl{api: client}
+	impl := &giftManagerImpl{api: client}
 
 	assert.Equal(t, client, impl.api)
 

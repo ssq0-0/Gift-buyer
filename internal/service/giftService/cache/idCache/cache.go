@@ -7,20 +7,20 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-type IDCacheImpl struct {
+type idCacheImpl struct {
 	users    map[int64]*tg.User
 	channels map[int64]*tg.Channel
 	mu       sync.RWMutex
 }
 
-func NewIDCache() *IDCacheImpl {
-	return &IDCacheImpl{
+func NewIDCache() *idCacheImpl {
+	return &idCacheImpl{
 		users:    make(map[int64]*tg.User),
 		channels: make(map[int64]*tg.Channel),
 	}
 }
 
-func (c *IDCacheImpl) SetUser(user *tg.User) {
+func (c *idCacheImpl) SetUser(user *tg.User) {
 	if user == nil {
 		return
 	}
@@ -29,7 +29,7 @@ func (c *IDCacheImpl) SetUser(user *tg.User) {
 	c.users[user.ID] = user
 }
 
-func (c *IDCacheImpl) GetUser(id int64) (*tg.User, error) {
+func (c *idCacheImpl) GetUser(id int64) (*tg.User, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	user, ok := c.users[id]
@@ -39,7 +39,7 @@ func (c *IDCacheImpl) GetUser(id int64) (*tg.User, error) {
 	return user, nil
 }
 
-func (c *IDCacheImpl) SetChannel(channel *tg.Channel) {
+func (c *idCacheImpl) SetChannel(channel *tg.Channel) {
 	if channel == nil {
 		return
 	}
@@ -48,7 +48,7 @@ func (c *IDCacheImpl) SetChannel(channel *tg.Channel) {
 	c.channels[channel.ID] = channel
 }
 
-func (c *IDCacheImpl) GetChannel(id int64) (*tg.Channel, error) {
+func (c *idCacheImpl) GetChannel(id int64) (*tg.Channel, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	channel, ok := c.channels[id]

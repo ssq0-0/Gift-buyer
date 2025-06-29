@@ -10,15 +10,15 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-type AccountManager struct {
+type accountManagerImpl struct {
 	api        *tg.Client
 	userIDs    []int
 	channelIDs []int
 	userCache  giftInterfaces.UserCache
 }
 
-func NewAccountManager(api *tg.Client, userIDs, channelIDs []int, userCache giftInterfaces.UserCache) *AccountManager {
-	return &AccountManager{
+func NewAccountManager(api *tg.Client, userIDs, channelIDs []int, userCache giftInterfaces.UserCache) *accountManagerImpl {
+	return &accountManagerImpl{
 		api:        api,
 		userIDs:    userIDs,
 		channelIDs: channelIDs,
@@ -26,7 +26,7 @@ func NewAccountManager(api *tg.Client, userIDs, channelIDs []int, userCache gift
 	}
 }
 
-func (am *AccountManager) SetIds(ctx context.Context) error {
+func (am *accountManagerImpl) SetIds(ctx context.Context) error {
 	if am.api == nil {
 		return errors.New("API client is nil")
 	}
@@ -46,7 +46,7 @@ func (am *AccountManager) SetIds(ctx context.Context) error {
 	return nil
 }
 
-func (am *AccountManager) loadUsersToCache(ctx context.Context) error {
+func (am *accountManagerImpl) loadUsersToCache(ctx context.Context) error {
 	if am.api == nil {
 		return errors.New("API client is nil")
 	}
@@ -94,7 +94,7 @@ func (am *AccountManager) loadUsersToCache(ctx context.Context) error {
 	return nil
 }
 
-func (am *AccountManager) loadChannelsToCache(ctx context.Context) error {
+func (am *accountManagerImpl) loadChannelsToCache(ctx context.Context) error {
 
 	cachedCount := 0
 	notFoundChannels := []int{}
@@ -117,7 +117,7 @@ func (am *AccountManager) loadChannelsToCache(ctx context.Context) error {
 	return nil
 }
 
-func (am *AccountManager) loadSingleChannel(ctx context.Context, channelID int) (*tg.Channel, error) {
+func (am *accountManagerImpl) loadSingleChannel(ctx context.Context, channelID int) (*tg.Channel, error) {
 	if am.api == nil {
 		return nil, errors.New("API client is nil")
 	}

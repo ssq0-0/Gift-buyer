@@ -5,7 +5,6 @@ package giftValidator
 
 import (
 	"gift-buyer/internal/config"
-	"gift-buyer/internal/service/giftService/giftInterfaces"
 
 	"github.com/gotd/td/tg"
 )
@@ -13,7 +12,7 @@ import (
 // GiftValidator implements the GiftValidator interface for validating gifts
 // against configured purchase criteria. It evaluates gifts based on price,
 // supply availability, and total star spending caps.
-type GiftValidator struct {
+type giftValidatorImpl struct {
 	LimitedStatus bool
 	// criteria contains the list of validation criteria for gift purchases
 	criteria []config.Criterias
@@ -35,8 +34,8 @@ type GiftValidator struct {
 //
 // Returns:
 //   - giftInterfaces.GiftValidator: configured gift validator instance
-func NewGiftValidator(criterias []config.Criterias, totalStarCap int64, testMode bool, limitedStatus bool) giftInterfaces.GiftValidator {
-	return &GiftValidator{
+func NewGiftValidator(criterias []config.Criterias, totalStarCap int64, testMode bool, limitedStatus bool) *giftValidatorImpl {
+	return &giftValidatorImpl{
 		criteria:      criterias,
 		totalStarCap:  totalStarCap,
 		testMode:      testMode,
@@ -60,7 +59,7 @@ func NewGiftValidator(criterias []config.Criterias, totalStarCap int64, testMode
 // Returns:
 //   - int64: number of gifts to purchase if eligible (0 if not eligible)
 //   - bool: true if the gift meets any criteria, false otherwise
-func (gv *GiftValidator) IsEligible(gift *tg.StarGift) (int64, bool) {
+func (gv *giftValidatorImpl) IsEligible(gift *tg.StarGift) (int64, bool) {
 	if gift.SoldOut {
 		return 0, false
 	}
@@ -86,7 +85,7 @@ func (gv *GiftValidator) IsEligible(gift *tg.StarGift) (int64, bool) {
 //
 // Returns:
 //   - bool: true if the gift price is within the criteria range
-func (gv *GiftValidator) priceValid(criteria config.Criterias, gift *tg.StarGift) bool {
+func (gv *giftValidatorImpl) priceValid(criteria config.Criterias, gift *tg.StarGift) bool {
 	giftPrice := gift.GetStars()
 	if giftPrice >= criteria.MinPrice && giftPrice <= criteria.MaxPrice {
 		return true
@@ -111,7 +110,7 @@ func (gv *GiftValidator) priceValid(criteria config.Criterias, gift *tg.StarGift
 //
 // Returns:
 //   - bool: true if the gift supply meets requirements
-func (gv *GiftValidator) supplyValid(criteria config.Criterias, gift *tg.StarGift) bool {
+func (gv *giftValidatorImpl) supplyValid(criteria config.Criterias, gift *tg.StarGift) bool {
 	if gv.testMode {
 		return true
 	}
@@ -142,7 +141,7 @@ func (gv *GiftValidator) supplyValid(criteria config.Criterias, gift *tg.StarGif
 //
 // Returns:
 //   - bool: true if the gift doesn't exceed the star spending cap
-func (gv *GiftValidator) starCapValidation(gift *tg.StarGift) bool {
+func (gv *giftValidatorImpl) starCapValidation(gift *tg.StarGift) bool {
 	if gv.testMode {
 		return true
 	}

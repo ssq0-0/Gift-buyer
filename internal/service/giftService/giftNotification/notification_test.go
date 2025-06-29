@@ -1,9 +1,7 @@
 package giftNotification
 
 import (
-	"context"
 	"gift-buyer/internal/config"
-	"gift-buyer/internal/service/giftService/giftInterfaces"
 	"testing"
 
 	"github.com/gotd/td/tg"
@@ -20,8 +18,7 @@ func TestNewNotification(t *testing.T) {
 
 	assert.NotNil(t, service)
 
-	_, ok := service.(giftInterfaces.NotificationService)
-	assert.True(t, ok)
+	assert.NotNil(t, service)
 }
 
 func TestNotificationService_Interface_Compliance(t *testing.T) {
@@ -34,11 +31,7 @@ func TestNotificationService_Interface_Compliance(t *testing.T) {
 
 	// Verify that the service implements the NotificationService interface
 	// This is a compile-time check, but we can also verify at runtime
-	_, ok := service.(interface {
-		SendNewGiftNotification(ctx context.Context, gift *tg.StarGift) error
-		SendBuyStatus(ctx context.Context, status string, err error) error
-	})
-	assert.True(t, ok, "NotificationServiceImpl should implement the NotificationService interface")
+	assert.NotNil(t, service)
 }
 
 func TestNotificationService_Structure(t *testing.T) {
@@ -50,10 +43,8 @@ func TestNotificationService_Structure(t *testing.T) {
 	service := NewNotification(mockClient, mockConfig)
 
 	// Cast to concrete type to verify internal structure
-	ns, ok := service.(*NotificationServiceImpl)
-	assert.True(t, ok)
-	assert.Equal(t, mockClient, ns.Bot)
-	assert.Equal(t, mockConfig, ns.Config)
+	assert.Equal(t, mockClient, service.Bot)
+	assert.Equal(t, mockConfig, service.Config)
 }
 
 func TestNotificationService_NilClient(t *testing.T) {
@@ -66,10 +57,8 @@ func TestNotificationService_NilClient(t *testing.T) {
 	assert.NotNil(t, service)
 
 	// Cast to concrete type to verify nil client is stored
-	ns, ok := service.(*NotificationServiceImpl)
-	assert.True(t, ok)
-	assert.Nil(t, ns.Bot)
-	assert.Equal(t, mockConfig, ns.Config)
+	assert.Nil(t, service.Bot)
+	assert.Equal(t, mockConfig, service.Config)
 }
 
 func TestNotificationService_NilConfig(t *testing.T) {
@@ -79,8 +68,6 @@ func TestNotificationService_NilConfig(t *testing.T) {
 	assert.NotNil(t, service)
 
 	// Cast to concrete type to verify nil config is stored
-	ns, ok := service.(*NotificationServiceImpl)
-	assert.True(t, ok)
-	assert.Equal(t, mockClient, ns.Bot)
-	assert.Nil(t, ns.Config)
+	assert.Equal(t, mockClient, service.Bot)
+	assert.Nil(t, service.Config)
 }

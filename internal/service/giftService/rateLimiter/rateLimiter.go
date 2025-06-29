@@ -7,7 +7,7 @@ import (
 )
 
 // rateLimiter implements a token bucket rate limiter for API calls
-type RateLimiter struct {
+type rateLimiterImpl struct {
 	tokens    chan struct{}
 	ticker    *time.Ticker
 	maxTokens int
@@ -16,7 +16,7 @@ type RateLimiter struct {
 }
 
 // newRateLimiter creates a new rate limiter with specified rate (requests per second)
-func NewRateLimiter(rps int) *RateLimiter {
+func NewRateLimiter(rps int) *rateLimiterImpl {
 	var ticker *time.Ticker
 	if rps > 0 {
 		ticker = time.NewTicker(time.Second / time.Duration(rps))
@@ -24,7 +24,7 @@ func NewRateLimiter(rps int) *RateLimiter {
 		ticker = time.NewTicker(time.Hour)
 	}
 
-	rl := &RateLimiter{
+	rl := &rateLimiterImpl{
 		tokens:    make(chan struct{}, rps),
 		ticker:    ticker,
 		maxTokens: rps,
@@ -42,7 +42,7 @@ func NewRateLimiter(rps int) *RateLimiter {
 	return rl
 }
 
-func (rl *RateLimiter) Acquire(ctx context.Context) error {
+func (rl *rateLimiterImpl) Acquire(ctx context.Context) error {
 	select {
 	case <-rl.tokens:
 		return nil
@@ -51,7 +51,7 @@ func (rl *RateLimiter) Acquire(ctx context.Context) error {
 	}
 }
 
-func (rl *RateLimiter) refillTokens() {
+func (rl *rateLimiterImpl) refillTokens() {
 	for range rl.ticker.C {
 		rl.mu.Lock()
 		if rl.closed {
@@ -68,7 +68,7 @@ func (rl *RateLimiter) refillTokens() {
 	}
 }
 
-func (rl *RateLimiter) Close() {
+func (rl *rateLimiterImpl) Close() {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 

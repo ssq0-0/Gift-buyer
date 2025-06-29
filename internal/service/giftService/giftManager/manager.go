@@ -5,16 +5,15 @@ package giftManager
 
 import (
 	"context"
-	"gift-buyer/internal/service/giftService/giftInterfaces"
 	"gift-buyer/pkg/errors"
 
 	"github.com/gotd/td/tg"
 )
 
-// GiftManagerImpl implements the Giftmanager interface for managing gift operations.
+// giftManagerImpl implements the Giftmanager interface for managing gift operations.
 // It provides methods to retrieve available gifts from the Telegram API and
 // handles the parsing of API responses into usable data structures.
-type GiftManagerImpl struct {
+type giftManagerImpl struct {
 	// api is the Telegram client used for API communication
 	api *tg.Client
 }
@@ -27,8 +26,8 @@ type GiftManagerImpl struct {
 //
 // Returns:
 //   - giftInterfaces.Giftmanager: configured gift manager instance
-func NewGiftManager(api *tg.Client) giftInterfaces.Giftmanager {
-	return &GiftManagerImpl{api: api}
+func NewGiftManager(api *tg.Client) *giftManagerImpl {
+	return &giftManagerImpl{api: api}
 }
 
 // GetAvailableGifts retrieves all currently available star gifts from Telegram.
@@ -51,7 +50,7 @@ func NewGiftManager(api *tg.Client) giftInterfaces.Giftmanager {
 //   - Network communication errors with Telegram API
 //   - Unexpected response type from the API
 //   - Context cancellation or timeout
-func (gm *GiftManagerImpl) GetAvailableGifts(ctx context.Context) ([]*tg.StarGift, error) {
+func (gm *giftManagerImpl) GetAvailableGifts(ctx context.Context) ([]*tg.StarGift, error) {
 	gifts, err := gm.api.PaymentsGetStarGifts(ctx, 0)
 	if err != nil {
 		return nil, err

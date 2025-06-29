@@ -17,7 +17,7 @@ import (
 // GiftBuyerImpl implements the GiftBuyer interface for purchasing Telegram star gifts.
 // It manages the complete purchase workflow including payment processing, retry logic,
 // balance validation, and purchase counting with configurable limits.
-type GiftBuyerImpl struct {
+type giftBuyerImpl struct {
 	// manager handles gift-related operations and API communication
 	manager giftInterfaces.Giftmanager
 
@@ -89,8 +89,8 @@ func NewGiftBuyer(
 	purchaseProcessor giftInterfaces.PurchaseProcessor,
 	monitorProcessor giftInterfaces.MonitorProcessor,
 	counter giftInterfaces.Counter,
-) giftInterfaces.GiftBuyer {
-	return &GiftBuyerImpl{
+) *giftBuyerImpl {
+	return &giftBuyerImpl{
 		api:                  api,
 		userReceiver:         userIds,
 		channelReceiver:      channelIds,
@@ -126,7 +126,7 @@ func NewGiftBuyer(
 //
 // Returns:
 //   - error: purchase error, payment failure, or aggregated error from multiple failures
-func (gm *GiftBuyerImpl) BuyGift(ctx context.Context, gifts map[*tg.StarGift]int64) {
+func (gm *giftBuyerImpl) BuyGift(ctx context.Context, gifts map[*tg.StarGift]int64) {
 	var (
 		wg        sync.WaitGroup
 		sem       = make(chan struct{}, gm.concurrentGifts)
@@ -165,7 +165,7 @@ func (gm *GiftBuyerImpl) BuyGift(ctx context.Context, gifts map[*tg.StarGift]int
 // Returns:
 //   - int64: number of successful purchases completed
 //   - error: purchase error after all retry attempts exhausted
-func (gm *GiftBuyerImpl) buyGift(ctx context.Context, gift *tg.StarGift, count int64, resChan chan<- giftTypes.GiftResult) {
+func (gm *giftBuyerImpl) buyGift(ctx context.Context, gift *tg.StarGift, count int64, resChan chan<- giftTypes.GiftResult) {
 	var (
 		wg  sync.WaitGroup
 		sem = make(chan struct{}, gm.concurrentOperations)
@@ -185,7 +185,7 @@ func (gm *GiftBuyerImpl) buyGift(ctx context.Context, gift *tg.StarGift, count i
 	wg.Wait()
 }
 
-func (gm *GiftBuyerImpl) buyGiftWithRetry(ctx context.Context, gift *tg.StarGift, resChan chan<- giftTypes.GiftResult) {
+func (gm *giftBuyerImpl) buyGiftWithRetry(ctx context.Context, gift *tg.StarGift, resChan chan<- giftTypes.GiftResult) {
 	var lastErr error
 
 	for j := 0; j < gm.retryCount; j++ {
@@ -232,6 +232,6 @@ func (gm *GiftBuyerImpl) buyGiftWithRetry(ctx context.Context, gift *tg.StarGift
 	}
 }
 
-func (gm *GiftBuyerImpl) Close() {
+func (gm *giftBuyerImpl) Close() {
 	gm.rateLimiter.Close()
 }

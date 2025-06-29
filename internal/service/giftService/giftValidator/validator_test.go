@@ -21,11 +21,9 @@ func TestNewGiftValidator(t *testing.T) {
 	validator := NewGiftValidator(criterias, 5000, false, false)
 	assert.NotNil(t, validator)
 
-	gv, ok := validator.(*GiftValidator)
-	assert.True(t, ok)
-	assert.Equal(t, criterias, gv.criteria)
-	assert.Equal(t, int64(5000), gv.totalStarCap)
-	assert.Equal(t, false, gv.testMode)
+	assert.Equal(t, criterias, validator.criteria)
+	assert.Equal(t, int64(5000), validator.totalStarCap)
+	assert.Equal(t, false, validator.testMode)
 }
 
 func TestGiftValidator_IsEligible_ValidGift(t *testing.T) {
@@ -280,7 +278,7 @@ func TestGiftValidator_PriceValid_EdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			validator := &GiftValidator{
+			validator := &giftValidatorImpl{
 				criteria:     tt.criterias,
 				totalStarCap: 5000,
 			}
@@ -335,7 +333,7 @@ func TestGiftValidator_StarCapValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := validator.(*GiftValidator).starCapValidation(tt.gift)
+			result := validator.starCapValidation(tt.gift)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

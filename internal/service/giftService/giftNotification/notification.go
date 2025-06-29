@@ -9,7 +9,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"gift-buyer/internal/config"
-	"gift-buyer/internal/service/giftService/giftInterfaces"
 	"gift-buyer/pkg/logger"
 	mathRand "math/rand"
 	"strings"
@@ -33,7 +32,7 @@ func cryptoRandomInt63() int64 {
 // NotificationServiceImpl implements the NotificationService interface for sending
 // Telegram notifications about gift discoveries and purchase status updates.
 // It provides formatted messages with retry logic and flood protection.
-type NotificationServiceImpl struct {
+type notificationServiceImpl struct {
 	// Bot is the Telegram bot client used for sending notifications
 	Bot *tg.Client
 
@@ -50,8 +49,8 @@ type NotificationServiceImpl struct {
 //
 // Returns:
 //   - giftInterfaces.NotificationService: configured notification service instance
-func NewNotification(bot *tg.Client, config *config.TgSettings) giftInterfaces.NotificationService {
-	return &NotificationServiceImpl{
+func NewNotification(bot *tg.Client, config *config.TgSettings) *notificationServiceImpl {
+	return &notificationServiceImpl{
 		Bot:    bot,
 		Config: config,
 	}
@@ -72,7 +71,7 @@ func NewNotification(bot *tg.Client, config *config.TgSettings) giftInterfaces.N
 //
 // Returns:
 //   - error: notification sending error after all retries exhausted
-func (ns *NotificationServiceImpl) sendNotification(ctx context.Context, message string) error {
+func (ns *notificationServiceImpl) sendNotification(ctx context.Context, message string) error {
 	if ns.Bot == nil || ns.Config == nil || ns.Config.NotificationChatID == 0 {
 		logger.GlobalLogger.Warn("Bot client or notification chat ID not configured")
 		return nil
@@ -126,7 +125,7 @@ func (ns *NotificationServiceImpl) sendNotification(ctx context.Context, message
 //
 // Returns:
 //   - error: notification sending error or formatting error
-func (ns *NotificationServiceImpl) SendNewGiftNotification(ctx context.Context, gift *tg.StarGift) error {
+func (ns *notificationServiceImpl) SendNewGiftNotification(ctx context.Context, gift *tg.StarGift) error {
 	giftTitle, hasTitle := gift.GetTitle()
 	if !hasTitle {
 		giftTitle = "Unknown Gift"
@@ -187,7 +186,7 @@ func (ns *NotificationServiceImpl) SendNewGiftNotification(ctx context.Context, 
 //
 // Returns:
 //   - error: notification sending error
-func (ns *NotificationServiceImpl) SendBuyStatus(ctx context.Context, status string, err error) error {
+func (ns *notificationServiceImpl) SendBuyStatus(ctx context.Context, status string, err error) error {
 	var message string
 	if err != nil {
 		message = fmt.Sprintf("📊 Buy Status: %s\n❌ Error: %s", status, err.Error())
@@ -198,16 +197,16 @@ func (ns *NotificationServiceImpl) SendBuyStatus(ctx context.Context, status str
 	return ns.sendNotification(ctx, message)
 }
 
-func (ns *NotificationServiceImpl) SendErrorNotification(ctx context.Context, err error) error {
+func (ns *notificationServiceImpl) SendErrorNotification(ctx context.Context, err error) error {
 	return ns.sendNotification(ctx, err.Error())
 }
 
 // SetBot sets the bot client
-func (ns *NotificationServiceImpl) SetBot() bool {
+func (ns *notificationServiceImpl) SetBot() bool {
 	return ns.Bot != nil
 }
 
-func (ns *NotificationServiceImpl) SendUpdateNotification(ctx context.Context, version, message string) error {
+func (ns *notificationServiceImpl) SendUpdateNotification(ctx context.Context, version, message string) error {
 	return ns.sendNotification(ctx, fmt.Sprintf("🆕 New version available: %s\n%s", version, message))
 }
 
