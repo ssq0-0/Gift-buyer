@@ -118,6 +118,18 @@ type GiftMonitor interface {
 	//   - map[*tg.StarGift]int64: map of eligible gifts to their purchase quantities
 	//   - error: monitoring error, API communication error, or context cancellation
 	Start(ctx context.Context) (map[*tg.StarGift]int64, error)
+
+	// Pause pauses the gift monitoring process.
+	Pause()
+
+	// Resume resumes the gift monitoring process.
+	Resume()
+
+	// IsPaused returns the status of the gift monitoring process.
+	//
+	// Returns:
+	//   - bool: true if the monitoring is paused, false if active
+	IsPaused() bool
 }
 
 // NotificationService defines the interface for sending notifications.

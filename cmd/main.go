@@ -15,7 +15,7 @@ package main
 import (
 	"context"
 	"gift-buyer/internal/config"
-	"gift-buyer/internal/service/giftService"
+	"gift-buyer/internal/usecase"
 	"gift-buyer/pkg/logger"
 	"os"
 	"os/signal"
@@ -43,7 +43,7 @@ func main() {
 	logLevel := logger.ParseLevel(cfg.LoggerLevel)
 	logger.Init(logLevel)
 
-	service, err := giftService.NewFactory(&cfg.SoftConfig).CreateSystem()
+	service, err := usecase.NewFactory(&cfg.SoftConfig).CreateSystem()
 	if err != nil {
 		logger.GlobalLogger.Fatalf("Failed to init telegram client: %v", err)
 	}
@@ -73,7 +73,7 @@ func main() {
 //
 // Parameters:
 //   - service: The GiftService instance to be stopped gracefully
-func gracefulShutdown(service giftService.GiftService) {
+func gracefulShutdown(service usecase.UseCase) {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 

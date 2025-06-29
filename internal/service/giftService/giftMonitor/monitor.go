@@ -8,15 +8,16 @@ import (
 	"gift-buyer/internal/service/giftService/giftInterfaces"
 	"gift-buyer/pkg/errors"
 	"gift-buyer/pkg/logger"
+	"sync"
 	"time"
 
 	"github.com/gotd/td/tg"
 )
 
-// GiftMonitorImpl implements the GiftMonitor interface for monitoring new gifts.
+// giftMonitorImpl implements the GiftMonitor interface for monitoring new gifts.
 // It periodically checks for new gifts, validates them against criteria,
 // and manages caching to avoid duplicate processing.
-type GiftMonitorImpl struct {
+type giftMonitorImpl struct {
 	// cache stores processed gifts to avoid duplicate notifications
 	cache giftInterfaces.GiftCache
 
@@ -33,6 +34,12 @@ type GiftMonitorImpl struct {
 	ticker *time.Ticker
 
 	firstRun bool
+
+	// paused indicates if monitoring is currently paused
+	paused bool
+
+	// mu protects the paused field from concurrent access
+	mu sync.RWMutex
 }
 
 // NewGiftMonitor creates a new GiftMonitor instance with the specified dependencies.
@@ -55,7 +62,7 @@ func NewGiftMonitor(
 	notification giftInterfaces.NotificationService,
 	tickTime time.Duration,
 ) giftInterfaces.GiftMonitor {
-	return &GiftMonitorImpl{
+	return &giftMonitorImpl{
 		cache:        cache,
 		manager:      manager,
 		validator:    validator,
@@ -83,7 +90,7 @@ func NewGiftMonitor(
 // Returns:
 //   - map[*tg.StarGift]int64: map of eligible gifts to their purchase quantities
 //   - error: monitoring error, API communication error, or context cancellation
-func (gm *GiftMonitorImpl) Start(ctx context.Context) (map[*tg.StarGift]int64, error) {
+func (gm *giftMonitorImpl) Start(ctx context.Context) (map[*tg.StarGift]int64, error) {
 	resultCh := make(chan map[*tg.StarGift]int64, 10)
 	errCh := make(chan error, 10)
 
@@ -92,6 +99,10 @@ func (gm *GiftMonitorImpl) Start(ctx context.Context) (map[*tg.StarGift]int64, e
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-gm.ticker.C:
+			if gm.IsPaused() {
+				continue
+			}
+
 			go func() {
 				newGifts, err := gm.checkForNewGifts(ctx)
 				if err != nil {
@@ -107,8 +118,10 @@ func (gm *GiftMonitorImpl) Start(ctx context.Context) (map[*tg.StarGift]int64, e
 		case newGifts := <-resultCh:
 			return newGifts, nil
 		case err := <-errCh:
-			gm.notification.SendErrorNotification(ctx, err)
-			logger.GlobalLogger.Errorf("monitoring error: %v", err)
+			if !gm.IsPaused() {
+				gm.notification.SendErrorNotification(ctx, err)
+				logger.GlobalLogger.Errorf("monitoring error: %v", err)
+			}
 			continue
 		}
 	}
@@ -124,7 +137,7 @@ func (gm *GiftMonitorImpl) Start(ctx context.Context) (map[*tg.StarGift]int64, e
 // Returns:
 //   - map[*tg.StarGift]int64: map of new eligible gifts to purchase quantities
 //   - error: API communication error or validation error
-func (gm *GiftMonitorImpl) checkForNewGifts(ctx context.Context) (map[*tg.StarGift]int64, error) {
+func (gm *giftMonitorImpl) checkForNewGifts(ctx context.Context) (map[*tg.StarGift]int64, error) {
 	currentGifts, err := gm.manager.GetAvailableGifts(ctx)
 	if err != nil {
 		return nil, err
@@ -150,4 +163,36 @@ func (gm *GiftMonitorImpl) checkForNewGifts(ctx context.Context) (map[*tg.StarGi
 	}
 
 	return newValidGifts, nil
+}
+
+// Pause pauses the gift monitoring process.
+// It stops the monitoring goroutine and prevents new gifts from being discovered.
+func (gm *giftMonitorImpl) Pause() {
+	gm.mu.Lock()
+	defer gm.mu.Unlock()
+	if !gm.paused {
+		gm.paused = true
+		logger.GlobalLogger.Info("Gift monitoring paused")
+	}
+}
+
+// Resume resumes the gift monitoring process.
+// It starts the monitoring goroutine and allows new gifts to be discovered.
+func (gm *giftMonitorImpl) Resume() {
+	gm.mu.Lock()
+	defer gm.mu.Unlock()
+	if gm.paused {
+		gm.paused = false
+		logger.GlobalLogger.Info("Gift monitoring resumed")
+	}
+}
+
+// IsPaused returns the status of the gift monitoring process.
+//
+// Returns:
+//   - bool: true if the monitoring is paused, false if active
+func (gm *giftMonitorImpl) IsPaused() bool {
+	gm.mu.RLock()
+	defer gm.mu.RUnlock()
+	return gm.paused
 }

@@ -21,6 +21,9 @@ func NewIDCache() *IDCacheImpl {
 }
 
 func (c *IDCacheImpl) SetUser(user *tg.User) {
+	if user == nil {
+		return
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.users[user.ID] = user
@@ -37,6 +40,9 @@ func (c *IDCacheImpl) GetUser(id int64) (*tg.User, error) {
 }
 
 func (c *IDCacheImpl) SetChannel(channel *tg.Channel) {
+	if channel == nil {
+		return
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.channels[channel.ID] = channel

@@ -27,6 +27,9 @@ func NewAccountManager(api *tg.Client, userIDs, channelIDs []int, userCache gift
 }
 
 func (am *AccountManager) SetIds(ctx context.Context) error {
+	if am.api == nil {
+		return errors.New("API client is nil")
+	}
 
 	if len(am.userIDs) > 0 {
 		if err := am.loadUsersToCache(ctx); err != nil {
@@ -44,6 +47,10 @@ func (am *AccountManager) SetIds(ctx context.Context) error {
 }
 
 func (am *AccountManager) loadUsersToCache(ctx context.Context) error {
+	if am.api == nil {
+		return errors.New("API client is nil")
+	}
+
 	contacts, err := am.api.ContactsGetContacts(ctx, 0)
 	if err != nil {
 		return errors.Wrap(err, "failed to get contacts")
@@ -111,6 +118,10 @@ func (am *AccountManager) loadChannelsToCache(ctx context.Context) error {
 }
 
 func (am *AccountManager) loadSingleChannel(ctx context.Context, channelID int) (*tg.Channel, error) {
+	if am.api == nil {
+		return nil, errors.New("API client is nil")
+	}
+
 	var actualChannelID int64
 	if channelID < -1000000000000 {
 		actualChannelID = int64(-channelID - 1000000000000)
