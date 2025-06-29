@@ -62,6 +62,10 @@
 - **Уведомления** — мгновенные оповещения в Telegram при необходимости
 - **Кэширование** — сохранение состояния между перезапусками
 - **Безопасность** — graceful shutdown и обработка ошибок
+- **🔄 Автоматический реконнект** — умное переподключение при критических ошибках API
+- **📱 Логирование в Telegram** — все ошибки и статусы покупок отправляются в Telegram бот
+- **⏱️ Контролируемые таймауты** — 10-минутный таймаут для ввода кода с автоматическим отключением
+- **🛡️ Устойчивость к сбоям** — пауза мониторинга во время переподключения с последующим восстановлением
 
 ### 🚀 Быстрый старт
 
@@ -144,6 +148,40 @@ GOOS=darwin GOARCH=amd64 go build -o gift-buyer-macos cmd/main.go
 - `warn` - Предупреждения
 - `error` - Только ошибки
 
+### 📱 Уведомления в Telegram
+
+При настроенном боте все важные события автоматически отправляются в Telegram:
+
+**Уведомления о покупках:**
+- ✅ Успешная покупка всех подарков
+- ⚠️ Частичная покупка (часть подарков куплена)
+- ❌ Неудачная покупка с деталями ошибок
+
+**Системные уведомления:**
+- 🔄 Начало процесса переподключения
+- ✅ Успешное переподключение
+- ❌ Критические ошибки API
+- ⏱️ Таймауты аутентификации
+
+### 🔄 Система автоматического переподключения
+
+Программа автоматически обнаруживает и обрабатывает критические ошибки API:
+
+**Критические ошибки, требующие переподключения:**
+- `AUTH_KEY_UNREGISTERED` - ключ аутентификации не зарегистрирован
+- `CONNECTION_NOT_INITED` - соединение не инициализировано
+- `SESSION_REVOKED` - сессия отозвана
+
+**Процесс переподключения:**
+1. 🔍 Обнаружение критической ошибки API
+2. ⏸️ Пауза мониторинга подарков
+3. 🔄 Переподключение к Telegram API
+4. ⏱️ Таймаут 10 минут для ввода кода (при необходимости)
+5. ▶️ Возобновление мониторинга подарков
+6. 🚫 Автоматическое отключение при неудаче
+
+**Важно:** Если переподключение не удается в течение 10 минут, программа автоматически завершается для предотвращения бесконечных попыток.
+
 ## 🤝 Вклад в проект
 
 1. Форкните репозиторий
@@ -177,6 +215,22 @@ GOOS=darwin GOARCH=amd64 go build -o gift-buyer-macos cmd/main.go
    ./gift-buyer
    ```
 
+### ⚠️ Важные новые возможности
+
+**🔄 Автоматическое переподключение:**
+- Программа автоматически переподключается при критических ошибках API
+- Мониторинг приостанавливается во время переподключения
+- При неудаче переподключения программа автоматически завершается
+
+**⏱️ Контролируемые таймауты:**
+- 10-минутный таймаут для ввода кода аутентификации
+- Автоматическое завершение при превышении таймаута
+
+**📱 Уведомления в Telegram:**
+- Настройте бота для получения уведомлений об ошибках
+- Мгновенные уведомления о статусе покупок
+- Информация о процессе переподключения
+
 ### ⚙️ Подробная конфигурация
 
 #### 🔧 Telegram настройки (`tg_settings`)
@@ -197,8 +251,13 @@ GOOS=darwin GOARCH=amd64 go build -o gift-buyer-macos cmd/main.go
 - **`app_id`** и **`api_hash`** — обязательные параметры из [my.telegram.org](https://my.telegram.org)
 - **`phone`** — номер телефона аккаунта в международном формате
 - **`password`** — пароль двухфакторной аутентификации (можно оставить пустым `""` если 2FA отключена)
-- **`tg_bot_key`** — токен Telegram бота для уведомлений (можно оставить пустым `""` если уведомления не нужны)
-- **`notification_chat_id`** — ID чата для отправки уведомлений(ваш юзер айди)
+- **`tg_bot_key`** — токен Telegram бота для уведомлений (**рекомендуется настроить для получения уведомлений об ошибках и статусе покупок**)
+- **`notification_chat_id`** — ID чата для отправки уведомлений (ваш user ID)
+
+**💡 Рекомендация:** Настройте Telegram бота для получения важных уведомлений:
+- Уведомления о статусе покупок (успех/неудача)
+- Критические ошибки API и переподключения
+- Таймауты аутентификации и системные сбои
 
 #### 🎯 Критерии покупки (`criterias`)
 
@@ -285,9 +344,15 @@ GOOS=darwin GOARCH=amd64 go build -o gift-buyer-macos cmd/main.go
 
 **Оптимизация производительности:**
 - Система использует асинхронную обработку повторов
-- RPC запросы ограничены до 30 в секунду для соблюдения лимитов Telegram
+- RPC запросы ограничены до 50 в секунду для соблюдения лимитов Telegram
 - Параллельная обработка до 300 операций одновременно
-- Минимальная задержка между повторами (10мс) для максимальной скорости
+- Минимальная задержка между повторами (0.5с) для оптимальной скорости
+
+**Новые возможности надежности:**
+- **Автоматическое переподключение** при критических ошибках API
+- **Интеллектуальная пауза** мониторинга во время переподключения
+- **Контролируемые таймауты** с автоматическим завершением программы
+- **Уведомления в Telegram** о всех важных событиях и ошибках
 
 #### 🧪 Тестовый режим (`test_mode`)
 
@@ -357,8 +422,8 @@ GOOS=darwin GOARCH=amd64 go build -o gift-buyer-macos cmd/main.go
         "test_mode": false,
         "max_buy_count": 4,
         "ticker": 2.0,
-        "retry_count": 4,
-        "retry_delay": 0.01,
+        "retry_count": 3,
+        "retry_delay": 0.5,
         "limited_status": false,
         "concurrency_gift_count": 10,
         "concurrent_operations": 300,
@@ -371,7 +436,39 @@ GOOS=darwin GOARCH=amd64 go build -o gift-buyer-macos cmd/main.go
 
 - Go 1.23.4+
 - Telegram аккаунт с API ключами(https://my.telegram.org/apps)
-- Telegram бот для уведомлений (опционально)
+- Telegram бот для уведомлений (**рекомендуется**)
+
+### 🤖 Настройка Telegram бота (рекомендуется)
+
+Для получения уведомлений об ошибках и статусе покупок настройте Telegram бота:
+
+1. **Создайте бота:**
+   - Напишите [@BotFather](https://t.me/BotFather)
+   - Используйте команду `/newbot`
+   - Следуйте инструкциям для создания бота
+   - Скопируйте полученный токен
+
+2. **Получите ваш User ID:**
+   - Напишите [@userinfobot](https://t.me/userinfobot)
+   - Скопируйте ваш User ID
+
+3. **Настройте конфигурацию:**
+   ```json
+   {
+     "tg_bot_key": "1234567890:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+     "notification_chat_id": 123456789
+   }
+   ```
+
+4. **Запустите чат с ботом:**
+   - Найдите вашего бота в Telegram
+   - Нажмите "Запустить" или отправьте `/start`
+
+После настройки вы будете получать уведомления о:
+- ✅/❌ Статусе покупок подарков
+- 🔄 Процессе переподключения
+- ⚠️ Критических ошибках API
+- ⏱️ Таймаутах аутентификации
 
 ---
 
@@ -391,6 +488,10 @@ GOOS=darwin GOARCH=amd64 go build -o gift-buyer-macos cmd/main.go
 - **📱 Notifications** — instant Telegram alerts
 - **💾 Caching** — state persistence between restarts
 - **🛡️ Security** — graceful shutdown and error handling
+- **🔄 Automatic Reconnect** — smart reconnection on critical API errors
+- **📱 Telegram Logging** — all errors and purchase statuses are sent to Telegram bot
+- **⏱️ Controlled Timeouts** — 10-minute timeout for entering code with automatic deactivation
+- **🛡️ Fault Tolerance** — pause monitoring during reconnection with subsequent restoration
 
 ### 🚀 Quick Start
 
@@ -492,6 +593,40 @@ Logging levels are configured via `LOG_LEVEL` variable:
 - `warn` - Warnings
 - `error` - Errors only
 
+### 📱 Telegram Notifications
+
+When a bot is configured, all important events are automatically sent to Telegram:
+
+**Purchase Notifications:**
+- ✅ Successful purchase of all gifts
+- ⚠️ Partial purchase (some gifts bought)
+- ❌ Failed purchase with error details
+
+**System Notifications:**
+- 🔄 Reconnection process started
+- ✅ Successful reconnection
+- ❌ Critical API errors
+- ⏱️ Authentication timeouts
+
+### 🔄 Automatic Reconnection System
+
+The program automatically detects and handles critical API errors:
+
+**Critical errors requiring reconnection:**
+- `AUTH_KEY_UNREGISTERED` - authentication key not registered
+- `CONNECTION_NOT_INITED` - connection not initialized  
+- `SESSION_REVOKED` - session revoked
+
+**Reconnection process:**
+1. 🔍 Critical API error detection
+2. ⏸️ Pause gift monitoring
+3. 🔄 Reconnect to Telegram API
+4. ⏱️ 10-minute timeout for code entry (if needed)
+5. ▶️ Resume gift monitoring
+6. 🚫 Automatic shutdown on failure
+
+**Important:** If reconnection fails within 10 minutes, the program automatically terminates to prevent infinite retry loops.
+
 ## 🤝 Contributing
 
 1. Fork the repository
@@ -539,8 +674,13 @@ In JSON file, the `tg_settings` section is ignored - all values are taken from e
 - **`TG_APP_ID`** and **`TG_API_HASH`** — required parameters from [my.telegram.org](https://my.telegram.org)
 - **`TG_PHONE`** — account phone number in international format
 - **`TG_PASSWORD`** — two-factor authentication password (can be omitted if 2FA is disabled)
-- **`TG_BOT_KEY`** — Telegram bot token for notifications (optional)
-- **`TG_NOTIFICATION_CHAT_ID`** — chat ID for sending notifications
+- **`TG_BOT_KEY`** — Telegram bot token for notifications (**recommended for error notifications and purchase status**)
+- **`TG_NOTIFICATION_CHAT_ID`** — chat ID for sending notifications (your user ID)
+
+**💡 Recommendation:** Configure a Telegram bot for important notifications:
+- Purchase status notifications (success/failure)
+- Critical API errors and reconnections
+- Authentication timeouts and system failures
 
 #### 🎯 Purchase Criteria (`criterias`)
 
@@ -611,25 +751,31 @@ New parameters for system performance optimization:
 
 ```json
 {
-    "retry_count": 4,
-    "retry_delay": 0.01,
-    "concurrency_gift_count": 10,
-    "concurrent_operations": 300,
-    "rpc_rate_limit": 30
+            "retry_count": 3,
+        "retry_delay": 0.5,
+        "concurrency_gift_count": 10,
+        "concurrent_operations": 300,
+        "rpc_rate_limit": 50
 }
 ```
 
-- **`retry_count`** — number of retry attempts for failed purchases (default 4)
-- **`retry_delay`** — delay between retry attempts in seconds (default 0.01 = 10ms)
+- **`retry_count`** — number of retry attempts for failed purchases (default 3)
+- **`retry_delay`** — delay between retry attempts in seconds (default 0.5 seconds)
 - **`concurrency_gift_count`** — maximum number of gifts processed simultaneously (default 10)
 - **`concurrent_operations`** — maximum number of concurrent operations (default 300)
-- **`rpc_rate_limit`** — RPC request rate limit per second for Telegram API (default 30 RPS)
+- **`rpc_rate_limit`** — RPC request rate limit per second for Telegram API (default 50 RPS)
 
 **Performance Optimization:**
-- System now uses asynchronous retry processing
-- RPC requests are limited to 30 per second to comply with Telegram limits
+- System uses asynchronous retry processing
+- RPC requests are limited to 50 per second to comply with Telegram limits
 - Parallel processing of up to 300 operations simultaneously
-- Minimal delay between retries (10ms) for maximum speed
+- Optimal delay between retries (0.5s) for maximum speed
+
+**New Reliability Features:**
+- **Automatic reconnection** on critical API errors
+- **Intelligent pause** of monitoring during reconnection
+- **Controlled timeouts** with automatic program termination
+- **Telegram notifications** for all important events and errors
 
 #### 🧪 Test Mode (`test_mode`)
 
@@ -699,12 +845,12 @@ If you have criteria for 3+2+1=6 gifts, but `max_buy_count: 4`, only 4 gifts wil
         "test_mode": false,
         "max_buy_count": 4,
         "ticker": 2.0,
-        "retry_count": 4,
-        "retry_delay": 0.01,
+        "retry_count": 3,
+        "retry_delay": 0.5,
         "limited_status": false,
         "concurrency_gift_count": 10,
         "concurrent_operations": 300,
-        "rpc_rate_limit": 30
+        "rpc_rate_limit": 50
     }
 }
 ```
@@ -712,8 +858,40 @@ If you have criteria for 3+2+1=6 gifts, but `max_buy_count: 4`, only 4 gifts wil
 ### 📋 Requirements
 
 - Go 1.23.4+
-- Telegram account with API credentials
-- Telegram bot for notifications (optional)
+- Telegram account with API credentials  
+- Telegram bot for notifications (**recommended**)
+
+### 🤖 Setting up Telegram Bot (recommended)
+
+To receive error notifications and purchase status updates, configure a Telegram bot:
+
+1. **Create a bot:**
+   - Message [@BotFather](https://t.me/BotFather)
+   - Use `/newbot` command
+   - Follow instructions to create the bot
+   - Copy the received token
+
+2. **Get your User ID:**
+   - Message [@userinfobot](https://t.me/userinfobot)
+   - Copy your User ID
+
+3. **Configure settings:**
+   ```json
+   {
+     "tg_bot_key": "1234567890:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+     "notification_chat_id": 123456789
+   }
+   ```
+
+4. **Start chat with bot:**
+   - Find your bot in Telegram
+   - Click "Start" or send `/start`
+
+After setup, you will receive notifications about:
+- ✅/❌ Gift purchase status
+- 🔄 Reconnection process
+- ⚠️ Critical API errors
+- ⏱️ Authentication timeouts
 
 ---
 

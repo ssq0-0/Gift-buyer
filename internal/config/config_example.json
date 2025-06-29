@@ -1,13 +1,24 @@
 {
+    "_comment_main": "Конфигурация Gift Buyer - автоматической системы покупки Telegram подарков",
+    "_comment_logging": "Уровень логирования: debug, info, warn, error",
     "logger_level": "debug",
+    
     "soft_config": {
+        "_comment_tg_settings": "=== НАСТРОЙКИ TELEGRAM ===",
         "tg_settings": {
+            "_comment_api": "Обязательные параметры API из my.telegram.org",
             "app_id": 1234567890,
             "api_hash": "qwertyuiop[]asdfghjkl;'zxcvbnm,./",
             "phone": "+71234567890",
             "password": "",
-            "tg_bot_key": "",
+            
+            "_comment_notifications": "=== УВЕДОМЛЕНИЯ И ЛОГИРОВАНИЕ ===",
+            "_comment_bot": "ВАЖНО: Настройте бота для получения уведомлений об ошибках, статусе покупок и процессе переподключения",
+            "tg_bot_key": "1234567890:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "_comment_chat": "Ваш User ID для отправки уведомлений (получить у @userinfobot)",
             "notification_chat_id": 1234567890,
+            
+            "_comment_device": "=== КОНФИГУРАЦИЯ УСТРОЙСТВА ===",
             "device_model": "MacBook Pro M1 Pro",
             "system_version": "macOS 15.3.1",
             "app_version": "11.9 (272031) APP_STORE",
@@ -15,38 +26,57 @@
             "lang_code": "en",
             "lang_pack": "en"
         },
+        
+        "_comment_criteria": "=== КРИТЕРИИ ПОКУПКИ ===",
         "criterias": [
             {
+                "_comment": "Дешевые подарки с большим тиражом",
                 "min_price": 10,
                 "max_price": 100,
                 "total_supply": 100000000,
                 "count": 10
             },
             {
+                "_comment": "Дорогие подарки с малым тиражом",
                 "min_price": 500,
                 "max_price": 1000,
                 "total_supply": 50000,
                 "count": 5
             }
         ],
+        
+        "_comment_limits": "=== ГЛОБАЛЬНЫЕ ОГРАНИЧЕНИЯ ===",
         "total_star_cap": 1000000000000,
+        "max_buy_count": 100,
+        "limited_status": true,
+        
+        "_comment_receivers": "=== ПОЛУЧАТЕЛИ ПОДАРКОВ ===",
         "receiver": {
+            "_comment_types": "0=себе, 1=пользователю, 2=в канал",
             "type": [0, 1, 2],
             "user_receiver_id": [1234567890, 9876543210],
             "channel_receiver_id": [-1001234567890]
         },
+        
+        "_comment_performance": "=== ПРОИЗВОДИТЕЛЬНОСТЬ И НАДЕЖНОСТЬ ===",
+        "_comment_monitoring": "Интервал мониторинга в секундах",
         "ticker": 2.0,
+        "_comment_retry": "Система повторов: количество попыток и задержка",
         "retry_count": 3,
         "retry_delay": 0.5,
-        "test_mode": false,
-        "max_buy_count": 100,
-        "limited_status": true,
+        "_comment_concurrency": "Параллельная обработка",
         "concurrency_gift_count": 10,
         "concurrent_operations": 300,
         "rpc_rate_limit": 50,
+        
+        "_comment_testing": "=== ТЕСТИРОВАНИЕ ===",
+        "test_mode": false,
+        
+        "_comment_updates": "=== СИСТЕМА ОБНОВЛЕНИЙ ===",
         "update_ticker": 60,
         "repo_owner": "ssq0-0",
         "repo_name": "Gift-buyer",
-        "api_link": "https://api.github.com"
+        "api_link": "https://api.github.com",
+        
     }
 }
