@@ -67,8 +67,9 @@ type useCaseImpl struct {
 	accountManager giftInterfaces.AccountManager
 
 	// version is the current version of the service
-	gitVersion   gitInterfaces.GitVersionController
-	updateTicker *time.Ticker
+	gitVersion              gitInterfaces.GitVersionController
+	updateTicker            *time.Ticker
+	lastNotificationVersion string
 }
 
 // NewUseCase creates a new UseCase instance with all required dependencies.
@@ -222,10 +223,11 @@ func (tc *useCaseImpl) checkNewUpdates() error {
 		return err
 	}
 
-	if ok {
+	if ok && tc.lastNotificationVersion != remoteVersion.TagName {
 		if err := tc.notification.SendUpdateNotification(tc.ctx, remoteVersion.TagName, fmt.Sprintf("%s\n", remoteVersion.Body)); err != nil {
 			logger.GlobalLogger.Error("Error sending update notification", "error", err)
 		}
+		tc.lastNotificationVersion = remoteVersion.TagName
 	}
 	return nil
 }
