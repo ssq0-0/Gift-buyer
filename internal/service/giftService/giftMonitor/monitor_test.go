@@ -2,6 +2,7 @@ package giftMonitor
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -110,7 +111,7 @@ func TestNewGiftMonitor(t *testing.T) {
 	assert.NotNil(t, monitor)
 
 	// Cast to concrete type to verify internal structure
-	gm, ok := monitor.(*GiftMonitorImpl)
+	gm, ok := monitor.(*giftMonitorImpl)
 	assert.True(t, ok)
 	assert.Equal(t, mockCache, gm.cache)
 	assert.Equal(t, mockManager, gm.manager)
@@ -173,7 +174,7 @@ func TestGiftMonitor_Start_SecondRunWithNewGifts(t *testing.T) {
 	mockNotification := new(MockNotificationService)
 
 	// Create monitor and skip first run manually
-	gm := &GiftMonitorImpl{
+	gm := &giftMonitorImpl{
 		cache:        mockCache,
 		manager:      mockManager,
 		validator:    mockValidator,
@@ -264,7 +265,7 @@ func TestGiftMonitor_CheckForNewGifts_Success(t *testing.T) {
 	mockValidator := new(MockGiftValidator)
 	mockNotification := new(MockNotificationService)
 
-	monitor := &GiftMonitorImpl{
+	monitor := &giftMonitorImpl{
 		cache:        mockCache,
 		manager:      mockManager,
 		validator:    mockValidator,
@@ -306,7 +307,7 @@ func TestGiftMonitor_CheckForNewGifts_ManagerError(t *testing.T) {
 	mockValidator := new(MockGiftValidator)
 	mockNotification := new(MockNotificationService)
 
-	monitor := &GiftMonitorImpl{
+	monitor := &giftMonitorImpl{
 		cache:        mockCache,
 		manager:      mockManager,
 		validator:    mockValidator,
@@ -334,7 +335,7 @@ func TestGiftMonitor_CheckForNewGifts_ExistingGifts(t *testing.T) {
 	mockValidator := new(MockGiftValidator)
 	mockNotification := new(MockNotificationService)
 
-	monitor := &GiftMonitorImpl{
+	monitor := &giftMonitorImpl{
 		cache:        mockCache,
 		manager:      mockManager,
 		validator:    mockValidator,
@@ -368,7 +369,7 @@ func TestGiftMonitor_CheckForNewGifts_NotEligible(t *testing.T) {
 	mockValidator := new(MockGiftValidator)
 	mockNotification := new(MockNotificationService)
 
-	monitor := &GiftMonitorImpl{
+	monitor := &giftMonitorImpl{
 		cache:        mockCache,
 		manager:      mockManager,
 		validator:    mockValidator,
@@ -396,4 +397,103 @@ func TestGiftMonitor_CheckForNewGifts_NotEligible(t *testing.T) {
 	mockCache.AssertExpectations(t)
 	mockManager.AssertExpectations(t)
 	mockValidator.AssertExpectations(t)
+}
+
+func TestGiftMonitor_PauseResumeIsPaused(t *testing.T) {
+	mockCache := new(MockGiftCache)
+	mockManager := new(MockGiftManager)
+	mockValidator := new(MockGiftValidator)
+	mockNotification := new(MockNotificationService)
+
+	monitor := NewGiftMonitor(mockCache, mockManager, mockValidator, mockNotification, time.Second)
+
+	// Initially should not be paused
+	assert.False(t, monitor.IsPaused())
+
+	// Test pause
+	monitor.Pause()
+	assert.True(t, monitor.IsPaused())
+
+	// Test pause again (should still be paused)
+	monitor.Pause()
+	assert.True(t, monitor.IsPaused())
+
+	// Test resume
+	monitor.Resume()
+	assert.False(t, monitor.IsPaused())
+
+	// Test resume again (should still be not paused)
+	monitor.Resume()
+	assert.False(t, monitor.IsPaused())
+}
+
+func TestGiftMonitor_Start_WithPause(t *testing.T) {
+	mockCache := new(MockGiftCache)
+	mockManager := new(MockGiftManager)
+	mockValidator := new(MockGiftValidator)
+	mockNotification := new(MockNotificationService)
+
+	// Create monitor and skip first run manually
+	gm := &giftMonitorImpl{
+		cache:        mockCache,
+		manager:      mockManager,
+		validator:    mockValidator,
+		notification: mockNotification,
+		ticker:       time.NewTicker(time.Millisecond * 10),
+		firstRun:     false, // Skip first run
+		paused:       true,  // Start paused
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*50)
+	defer cancel()
+
+	// Since monitor is paused, no API calls should be made
+	// The test should timeout waiting for results
+
+	newGifts, err := gm.Start(ctx)
+
+	assert.Error(t, err)
+	assert.Equal(t, context.DeadlineExceeded, err)
+	assert.Nil(t, newGifts)
+
+	// No expectations should be called since monitor is paused
+	mockCache.AssertExpectations(t)
+	mockManager.AssertExpectations(t)
+	mockValidator.AssertExpectations(t)
+}
+
+func TestGiftMonitor_ConcurrentPauseResume(t *testing.T) {
+	mockCache := new(MockGiftCache)
+	mockManager := new(MockGiftManager)
+	mockValidator := new(MockGiftValidator)
+	mockNotification := new(MockNotificationService)
+
+	monitor := NewGiftMonitor(mockCache, mockManager, mockValidator, mockNotification, time.Second)
+
+	// Test concurrent access to pause/resume methods
+	var wg sync.WaitGroup
+	numGoroutines := 10
+
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(3)
+		go func() {
+			defer wg.Done()
+			monitor.Pause()
+		}()
+		go func() {
+			defer wg.Done()
+			monitor.Resume()
+		}()
+		go func() {
+			defer wg.Done()
+			_ = monitor.IsPaused()
+		}()
+	}
+
+	wg.Wait()
+
+	// After all operations, the monitor should be in a consistent state
+	// The final state could be either paused or not paused, but it should be consistent
+	finalState := monitor.IsPaused()
+	assert.Equal(t, finalState, monitor.IsPaused())
 }
