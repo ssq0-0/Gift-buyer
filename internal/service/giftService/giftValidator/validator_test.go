@@ -401,9 +401,24 @@ func TestGiftValidator_TestMode(t *testing.T) {
 				Stars:               500,
 				Limited:             true,
 				SoldOut:             false,
-				AvailabilityRemains: 10, // Less than TotalSupply (50)
+				AvailabilityRemains: 10,  // Осталось 10 подарков
+				AvailabilityTotal:   100, // Общий тираж 100, что больше критерия TotalSupply (50)
 			},
 			expected: false,
+		},
+		{
+			name:          "production mode - accepts limited gift with sufficient total supply",
+			testMode:      false,
+			limitedStatus: true,
+			gift: &tg.StarGift{
+				ID:                  5,
+				Stars:               500,
+				Limited:             true,
+				SoldOut:             false,
+				AvailabilityRemains: 5,  // Осталось 5 подарков
+				AvailabilityTotal:   30, // Общий тираж 30, что меньше критерия TotalSupply (50)
+			},
+			expected: true,
 		},
 	}
 

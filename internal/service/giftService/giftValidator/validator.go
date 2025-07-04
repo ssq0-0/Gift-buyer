@@ -100,7 +100,7 @@ func (gv *giftValidatorImpl) priceValid(criteria config.Criterias, gift *tg.Star
 // For limited gifts, it checks:
 //   - Gift is not sold out
 //   - Remaining supply is greater than 0
-//   - Remaining supply meets the minimum total supply requirement
+//   - Total supply is not greater than the maximum allowed supply
 //
 // For unlimited gifts, it always returns true.
 //
@@ -121,7 +121,12 @@ func (gv *giftValidatorImpl) supplyValid(criteria config.Criterias, gift *tg.Sta
 			return false
 		}
 
-		if int64(remains) >= criteria.TotalSupply {
+		totalSupply, hasTotalSupply := gift.GetAvailabilityTotal()
+		if !hasTotalSupply {
+			return false
+		}
+
+		if int64(totalSupply) <= criteria.TotalSupply {
 			return true
 		}
 		return false

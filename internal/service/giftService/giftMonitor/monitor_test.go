@@ -133,12 +133,9 @@ func TestGiftMonitor_Start_FirstRun(t *testing.T) {
 	gift2 := &tg.StarGift{ID: 2, Stars: 200}
 	currentGifts := []*tg.StarGift{gift1, gift2}
 
-	// First run - should return "touch grass" error and continue monitoring
+	// First run - should just add all gifts to cache and return "touch grass" error
 	mockManager.On("GetAvailableGifts", mock.AnythingOfType("*context.timerCtx")).Return(currentGifts, nil).Times(1)
-	mockCache.On("HasGift", int64(1)).Return(false).Times(1)
-	mockCache.On("HasGift", int64(2)).Return(false).Times(1)
-	mockValidator.On("IsEligible", gift1).Return(int64(10), true).Times(1)
-	mockValidator.On("IsEligible", gift2).Return(int64(20), true).Times(1)
+	// On first run, we only call SetGift for each gift, no HasGift or IsEligible calls
 	mockCache.On("SetGift", int64(1), gift1).Return().Times(1)
 	mockCache.On("SetGift", int64(2), gift2).Return().Times(1)
 	mockNotification.On("SendErrorNotification", mock.Anything, mock.MatchedBy(func(err error) bool {
@@ -149,8 +146,6 @@ func TestGiftMonitor_Start_FirstRun(t *testing.T) {
 	mockManager.On("GetAvailableGifts", mock.AnythingOfType("*context.timerCtx")).Return(currentGifts, nil)
 	mockCache.On("HasGift", int64(1)).Return(true)
 	mockCache.On("HasGift", int64(2)).Return(true)
-	mockCache.On("SetGift", int64(1), gift1).Return()
-	mockCache.On("SetGift", int64(2), gift2).Return()
 
 	newGifts, err := monitor.Start(ctx)
 
