@@ -67,8 +67,7 @@ type SoftConfig struct {
 	// This flag is useful for production environments where console output should be minimized
 	LogFlag bool `json:"log_flag"`
 
-	UserLimitUse bool `json:"user_limit_use"`
-
+	// Prioritization disables prioritization between users and channels
 	Prioritization bool `json:"prioritization"`
 }
 
@@ -79,6 +78,7 @@ type GiftParam struct {
 	// TestMode enables test mode which bypasses certain validations
 	TestMode bool `json:"test_mode"`
 
+	// OnlyPremium allows only premium purchases
 	OnlyPremium bool `json:"only_premium"`
 
 	// TotalStarCap is the maximum total stars that can be spent across all gifts
